@@ -2060,13 +2060,15 @@ static struct wm_coeff_ctl *wm_adsp_get_ctl(struct wm_adsp *dsp,
 	return rslt;
 }
 
-int cs35l43_wm_adsp_write_ctl(struct wm_adsp *dsp, const char *name, int type,
-		      unsigned int alg, void *buf, size_t len)
+static int wm_adsp_write_ctl(struct wm_adsp *dsp, const char *name, int type,
+			     unsigned int alg, void *buf, size_t len)
 {
 	struct wm_coeff_ctl *ctl;
 	struct snd_kcontrol *kcontrol;
 	char ctl_name[SNDRV_CTL_ELEM_ID_NAME_MAXLEN];
 	int ret;
+
+	lockdep_assert_held(&dsp->pwr_lock);
 
 	ctl = wm_adsp_get_ctl(dsp, name, type, alg);
 	if (!ctl)
@@ -2100,21 +2102,35 @@ int cs35l43_wm_adsp_write_ctl(struct wm_adsp *dsp, const char *name, int type,
 
 	return 0;
 }
+
+int cs35l43_wm_adsp_write_ctl(struct wm_adsp *dsp, const char *name, int type,
+			    unsigned int alg, void *buf, size_t len)
+{
+	int ret;
+
+	mutex_lock(&dsp->pwr_lock);
+	ret = wm_adsp_write_ctl(dsp, name, type, alg, buf, len);
+	mutex_unlock(&dsp->pwr_lock);
+
+	return ret;
+}
 EXPORT_SYMBOL_GPL(cs35l43_wm_adsp_write_ctl);
 
 int cs35l43_wm_adsp_read_ctl(struct wm_adsp *dsp, const char *name, int type,
 		     unsigned int alg, void *buf, size_t len)
 {
 	struct wm_coeff_ctl *ctl;
+	int ret = -EINVAL;
 
+	mutex_lock(&dsp->pwr_lock);
 	ctl = wm_adsp_get_ctl(dsp, name, type, alg);
-	if (!ctl)
-		return -EINVAL;
+	if (!ctl || len > ctl->len)
+		goto out;
 
-	if (len > ctl->len)
-		return -EINVAL;
-
-	return wm_coeff_read_ctrl(ctl, buf, len);
+	ret = wm_coeff_read_ctrl(ctl, buf, len);
+out:
+	mutex_unlock(&dsp->pwr_lock);
+	return ret;
 }
 EXPORT_SYMBOL_GPL(cs35l43_wm_adsp_read_ctl);
 
@@ -3307,7 +3323,7 @@ static int wm_halo_apply_default(struct snd_soc_dapm_widget *w)
 	adsp_dbg(dsp, "%s:\n", __func__);
 	
 	val = cpu_to_be32(30);
-	ret = cs35l43_wm_adsp_write_ctl(dsp, "CAL_AMBIENT", WMFW_ADSP2_XM, CS35L43_ALG_ID_PROTECT_LITE, (void *)&val, sizeof(__be32));
+	ret = wm_adsp_write_ctl(dsp, "CAL_AMBIENT", WMFW_ADSP2_XM, CS35L43_ALG_ID_PROTECT_LITE, (void *)&val, sizeof(__be32));
 	if (ret)
 		adsp_dbg(dsp, "%s: Write CAL_AMBIENT, ret=%d\n", __func__, ret);
 	
