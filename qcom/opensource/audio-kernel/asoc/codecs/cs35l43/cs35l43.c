@@ -537,7 +537,7 @@ static int cs35l43_write_seq_add(struct cs35l43_private *cs35l43,
 {
 	struct device *dev = cs35l43->dev;
 	u32 *buf, *op_words, addr = 0, prev_addr = 0, value = 0;
-	u8 operation;
+	u8 operation = CS35L43_POWER_SEQ_OP_END;
 	unsigned int i, j, num_words, ret = 0;
 	struct cs35l43_write_seq_elem *write_seq_elem;
 
@@ -773,7 +773,7 @@ static int cs35l43_write_seq_init(struct cs35l43_private *cs35l43,
 {
 	struct device *dev = cs35l43->dev;
 	u32 *buf, *op_words;
-	u8 operation;
+	u8 operation = CS35L43_POWER_SEQ_OP_END;
 	unsigned int i, j, num_words, ret = 0;
 	struct cs35l43_write_seq_elem *write_seq_elem;
 
