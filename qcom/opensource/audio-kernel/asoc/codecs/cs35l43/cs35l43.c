@@ -874,11 +874,15 @@ err_free:
 
 static int cs35l43_dsp_reset(struct cs35l43_private *cs35l43)
 {
-	struct snd_soc_dapm_context *dapm = snd_soc_component_get_dapm(cs35l43->component);
-	struct snd_soc_dapm_widget fake_dapm_widget = {.dapm = dapm};
+	struct snd_soc_dapm_widget fake_dapm_widget = {0};
 
 	unsigned int val = 0;
 	int ret, retry = 10;
+
+	if (!cs35l43->component || !cs35l43->dsp.booted)
+		return -EINVAL;
+
+	fake_dapm_widget.dapm = snd_soc_component_get_dapm(cs35l43->component);
 
 	dev_info(cs35l43->dev, "%s\n", __func__);
 
