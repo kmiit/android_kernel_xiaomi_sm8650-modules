@@ -453,6 +453,8 @@ static void cs35l43_ignore_suspend_widgets(struct snd_soc_component *component)
 		snd_soc_dapm_ignore_suspend(dapm, widget);
 		snprintf(widget, sizeof(widget), "%s %s", component->name_prefix, "ASPRX2");
 		snd_soc_dapm_ignore_suspend(dapm, widget);
+		snprintf(widget, sizeof(widget), "%s %s", component->name_prefix, "ASPRX3");
+		snd_soc_dapm_ignore_suspend(dapm, widget);
 		snprintf(widget, sizeof(widget), "%s %s", component->name_prefix, "DSP RX1 Source");
 		snd_soc_dapm_ignore_suspend(dapm, widget);
 		snprintf(widget, sizeof(widget), "%s %s", component->name_prefix, "DSP RX2 Source");
@@ -512,6 +514,7 @@ static void cs35l43_ignore_suspend_widgets(struct snd_soc_component *component)
 		snd_soc_dapm_ignore_suspend(dapm, "AMP Playback");
 		snd_soc_dapm_ignore_suspend(dapm, "ASPRX1");
 		snd_soc_dapm_ignore_suspend(dapm, "ASPRX2");
+		snd_soc_dapm_ignore_suspend(dapm, "ASPRX3");
 		snd_soc_dapm_ignore_suspend(dapm, "DSP RX1 Source");
 		snd_soc_dapm_ignore_suspend(dapm, "DSP RX2 Source");
 		snd_soc_dapm_ignore_suspend(dapm, "DSP RX3 Source");
