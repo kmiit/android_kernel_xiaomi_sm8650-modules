@@ -224,20 +224,22 @@ static int cs35l43_apply_delta_tuning(struct cs35l43_private *cs35l43)
 {
 	struct wm_adsp *dsp = &cs35l43->dsp;
 	int ret = 0;
+	int delta_requested;
 	const char *fwf_name;
 	char filename[NAME_MAX];
 
-	if (cs35l43->delta_applied == cs35l43->delta_requested)
-		return 0;
+	mutex_lock(&dsp->pwr_lock);
+	delta_requested = cs35l43->delta_requested;
+	if (!dsp->running || cs35l43->delta_applied == delta_requested)
+		goto out;
 
-
-	if ((cs35l43->delta_requested < 0) || (cs35l43->delta_requested >= ARRAY_SIZE(delta_enum_text))) {
-		dev_err(cs35l43->dev, "Applying delta file index %d is illegal\n", cs35l43->delta_requested);
-		return 0;
+	if (delta_requested < 0 || delta_requested >= ARRAY_SIZE(delta_enum_text)) {
+		dev_err(cs35l43->dev, "Applying delta file index %d is illegal\n", delta_requested);
+		goto out;
 	}
-	dev_dbg(cs35l43->dev, "Applying delta file %d\n", cs35l43->delta_requested);
+	dev_dbg(cs35l43->dev, "Applying delta file %d\n", delta_requested);
+	snprintf(filename, NAME_MAX, "delta-%s", delta_enum_text[delta_requested]);
 	fwf_name = dsp->fwf_name;
-	snprintf(filename, NAME_MAX, "delta-%s", delta_enum_text[cs35l43->delta_requested]);
 	dsp->fwf_name = filename;
 
 	ret = cs35l43_wm_adsp_load_coeff(dsp);
@@ -245,9 +247,11 @@ static int cs35l43_apply_delta_tuning(struct cs35l43_private *cs35l43)
 		dev_err(cs35l43->dev, "Error applying delta file %s: %d\n",
 				filename, ret);
 	else
-		cs35l43->delta_applied = cs35l43->delta_requested;
+		cs35l43->delta_applied = delta_requested;
 
 	dsp->fwf_name = fwf_name;
+out:
+	mutex_unlock(&dsp->pwr_lock);
 
 	return ret;
 }
