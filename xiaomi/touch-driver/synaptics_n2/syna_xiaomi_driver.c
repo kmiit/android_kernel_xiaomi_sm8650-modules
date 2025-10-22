@@ -1,10 +1,10 @@
 #include <linux/soc/qcom/panel_event_notifier.h>
 #include "syna_tcm2.h"
 #include "syna_xiaomi_driver.h"
-#include "synaptics_touchcom_func_base.h"
-#include "synaptics_touchcom_func_base_flash.h"
-#include "synaptics_touchcom_core_dev.h"
-#include "synaptics_touchcom_func_reflash.h"
+#include "tcm/synaptics_touchcom_func_base.h"
+#include "tcm/synaptics_touchcom_func_base_flash.h"
+#include "tcm/synaptics_touchcom_core_dev.h"
+#include "tcm/synaptics_touchcom_func_reflash.h"
 #include "../xiaomi/xiaomi_touch.h"
 
 #define SYNAPTICS_DRIVER_VERSION "synaptics:2023.07.28-001-v2"
