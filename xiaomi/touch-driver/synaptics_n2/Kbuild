@@ -1,3 +1,7 @@
+ifeq ($(CONFIG_TARGET_PRODUCT_SHENNONG), y)
+	include $(src)/config/shennong.conf
+endif
+
 ifeq (1, $(strip $(CONFIG_TOUCH_FACTORY_SELECT)))
 KBUILD_CPPFLAGS += -DCONFIG_TOUCH_FACTORY_BUILD
 endif
