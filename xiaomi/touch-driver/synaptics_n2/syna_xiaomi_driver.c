@@ -1,13 +1,4 @@
-#if defined(TOUCH_PLATFORM_XRING)
-#include <linux/spi/spi.h>
-#include <linux/err.h>
-#include <linux/errno.h>
-#include <linux/types.h>
-#include <drm/drm_panel.h>
-#include <soc/xring/display/panel_event_notifier.h>
-#else
 #include <linux/soc/qcom/panel_event_notifier.h>
-#endif
 #include "syna_tcm2.h"
 #include "syna_xiaomi_driver.h"
 #include "synaptics_touchcom_func_base.h"
@@ -1829,13 +1820,8 @@ void syna_xiaomi_touch_probe(struct syna_tcm *syna_tcm)
 	hardware_operation.ic_set_charge_state = syna_tcm_set_charge_state;
 #endif
 	register_touch_panel(&spi->dev, TOUCH_ID, &hardware_param, &hardware_operation);
-#if defined(TOUCH_PLATFORM_XRING)
-	xiaomi_register_panel_notifier(&spi->dev, TOUCH_ID,
-		XRING_PANEL_EVENT_TAG_PRIMARY, XRING_PANEL_EVENT_CLIENT_PRIMARY_TOUCH);
-#else
 	xiaomi_register_panel_notifier(&spi->dev, TOUCH_ID,
 		PANEL_EVENT_NOTIFICATION_PRIMARY, PANEL_EVENT_NOTIFIER_CLIENT_PRIMARY_TOUCH);
-#endif
 	syna_tcm_enable_touch_raw(0);
 #ifdef CONFIG_TRUSTED_TOUCH
 	if (of_property_read_bool(node, "syna,qts_en")) {
