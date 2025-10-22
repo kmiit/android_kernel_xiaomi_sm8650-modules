@@ -1,3 +1,8 @@
+ifeq ($(CONFIG_TARGET_PRODUCT_SHENNONG), y)
+	include $(TOUCH_ROOT)/config/gki_shennong.conf
+	LINUX_INC += -include $(TOUCH_ROOT)/config/gki_shennongconf.h
+endif
+
 ifeq (1, $(strip $(CONFIG_TOUCH_FACTORY_SELECT)))
 KBUILD_CPPFLAGS += -DCONFIG_TOUCH_FACTORY_BUILD
 endif

@@ -1,5 +1,9 @@
 KDIR := $(TOP)/kernel_platform/common
 
+ifeq ($(CONFIG_TARGET_PRODUCT_SHENNONG), y)
+	obj-m += synaptics_tcm2/
+endif
+
 ifeq ($(CONFIG_ARCH_WAIPIO), y)
 	include $(TOUCH_ROOT)/config/gki_waipiotouch.conf
 	LINUX_INC += -include $(TOUCH_ROOT)/config/gki_waipiotouchconf.h
