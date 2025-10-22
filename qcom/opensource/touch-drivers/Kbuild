@@ -1,4 +1,3 @@
-
 KDIR := $(TOP)/kernel_platform/common
 
 ifeq ($(CONFIG_ARCH_WAIPIO), y)

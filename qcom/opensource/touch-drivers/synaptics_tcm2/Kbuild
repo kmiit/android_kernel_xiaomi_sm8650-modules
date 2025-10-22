@@ -55,7 +55,7 @@ EXTRA_CFLAGS += -Wheader-guard
 endif
 
 
-DIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
+DIR := $(kbuild-dir)/
 TCM_CORE=tcm/
 ccflags-y += -I$(DIR)
 ccflags-y += -I$(DIR)$(TCM_CORE)
@@ -78,5 +78,3 @@ synaptics_tcm2-m += qts/qts_core.o
 endif
 
 obj-m += synaptics_tcm2.o
-
-

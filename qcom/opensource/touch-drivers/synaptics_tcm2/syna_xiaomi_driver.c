@@ -1,4 +1,5 @@
 #include <linux/soc/qcom/panel_event_notifier.h>
+#include <linux/spi/spi.h>
 #include "syna_tcm2.h"
 #include "syna_xiaomi_driver.h"
 #include "synaptics_touchcom_func_base.h"
