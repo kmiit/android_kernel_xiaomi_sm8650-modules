@@ -26,8 +26,6 @@ ifeq (1, $(strip $(CONFIG_TOUCH_SPI_CS_CLK_DELAY)))
 KBUILD_CPPFLAGS += -DTOUCH_SPI_CS_CLK_DELAY
 endif
 
-obj-m += ../xiaomi/
-
 KDIR := $(TOP)/kernel_platform/common
 
 LINUX_INC +=	-Iinclude/linux \

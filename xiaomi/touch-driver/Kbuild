@@ -1,0 +1,7 @@
+_TARGET_PRODUCT := $(shell echo $(subst CONFIG_TARGET_PRODUCT_,,$(TARGET_PRODUCT)) | tr '[:upper:]' '[:lower:]')
+
+ifeq $($(filter $(_TARGET_PRODUCT),shennong), $(_TARGET_PRODUCT))
+	obj-m += synaptics_n2/
+endif
+
+obj-m += xiaomi/
