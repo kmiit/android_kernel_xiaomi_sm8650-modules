@@ -793,25 +793,15 @@ int xiaomi_get_y_resolution(void)
 static int syna_tcm_resume_suspend(bool is_resume, u8 gesture_type)
 {
 	int result = 0;
-#ifdef  CONFIG_TRUSTED_TOUCH
-	struct qts_data *qts_data = NULL;
-	qts_data = get_qts_data_helper(&qts_vendor_data);
-#endif
 
 	if (tcm == NULL || tcm->tp_probe_success == 0)
 		return -1;
 	if (is_resume) {
-#ifdef  CONFIG_TRUSTED_TOUCH
-		qts_ts_resume(qts_data);
-#endif
 		result = tcm->dev_resume(&tcm->pdev->dev);
 		syna_set_ic_mode(SET_BASE_REFRESH_INTERVAL_TIME, NULL);
 		return result;
 	}
 
-#ifdef  CONFIG_TRUSTED_TOUCH
-		qts_ts_suspend(qts_data);
-#endif
 	return tcm->dev_suspend(&tcm->pdev->dev);
 }
 #ifdef CONFIG_TRUSTED_TOUCH
@@ -865,6 +855,16 @@ static int syna_tcm_post_la_tui_enable(void *data)
 		return -EINVAL;
 	return 0;
 }
+static int syna_tcm_resume_helper(void *data)
+{
+	(void)data;
+	return syna_tcm_resume_suspend(true, 0);
+}
+static int syna_tcm_suspend_helper(void *data)
+{
+	(void)data;
+	return syna_tcm_resume_suspend(false, 0);
+}
 static void syna_tcm_fill_qts_vendor_data(struct qts_vendor_data *qts_vendor_data,
                  struct syna_tcm *tcm)
 {
@@ -895,6 +895,10 @@ static void syna_tcm_fill_qts_vendor_data(struct qts_vendor_data *qts_vendor_dat
 	qts_vendor_data->qts_vendor_ops.post_la_tui_enable = syna_tcm_post_la_tui_enable;
 	qts_vendor_data->qts_vendor_ops.pre_la_tui_disable = syna_tcm_pre_la_tui_disable;
 	qts_vendor_data->qts_vendor_ops.post_la_tui_disable = syna_tcm_post_la_tui_disable;
+	qts_vendor_data->qts_vendor_ops.resume = syna_tcm_resume_helper;
+	qts_vendor_data->qts_vendor_ops.suspend = syna_tcm_suspend_helper;
+	qts_vendor_data->schedule_suspend = false;
+	qts_vendor_data->schedule_resume = true;
 }
 #endif
 static int syna_tcm_set_touch_multi_function(struct tcm_dev *tcm_dev,
