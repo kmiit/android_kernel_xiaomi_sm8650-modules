@@ -414,12 +414,22 @@ struct cam_ife_hw_mgr_ctx {
 	uint32_t                                   curr_num_exp;
 	uint32_t                                   try_recovery_cnt;
 	uint64_t                                   recovery_req_id;
+	uint64_t                                   sof_timestamp;;
+	uint64_t                                   epoch_timestamp;
+	uint64_t                                   rdi1_sof_timestamp;
+	uint64_t                                   rdi2_sof_timestamp;
+	uint64_t                                   rdi1_sof_timestamp_shdr;
+	uint64_t                                   rdi2_sof_timestamp_shdr;
+	uint64_t                                   rdi4_sof_timestamp_shdr;
+	uint64_t                                   exposure_time;
 	uint32_t                                   drv_path_idle_en;
 	uint32_t                                   major_version;
 	struct cam_isp_context_comp_record        *vfe_bus_comp_grp;
 	struct cam_isp_context_comp_record        *sfe_bus_comp_grp;
 	struct timespec64                          cdm_done_ts;
 	bool                                       is_hw_ctx_acq;
+	uint32_t                                   last_mup;
+	uint64_t                                   mup_req_id;
 	uint32_t                                   acq_hw_ctxt_src_dst_map[CAM_ISP_MULTI_CTXT_MAX];
 };
 

@@ -43,10 +43,14 @@
 #define CAM_ISP_GENERIC_BLOB_TYPE_MAX               \
 	(CAM_ISP_GENERIC_BLOB_TYPE_CSID_QCFA_CONFIG + 1)
 
+/*add by xiaomi begin*/
+static int en_csid_recovery = 0;
+/*add by xiaomi end*/
 #define MAX_INTERNAL_RECOVERY_ATTEMPTS    1
 
 #define MAX_PARAMS_FOR_IRQ_INJECT     5
 #define IRQ_INJECT_DISPLAY_BUF_LEN    4096
+#define MAXIMUM_RDI1_WAIT_TIMES   200
 
 typedef int (*cam_isp_irq_inject_cmd_parse_handler)(
 	struct cam_isp_irq_inject_param *irq_inject_param,
@@ -70,6 +74,20 @@ typedef int (*cam_isp_irq_inject_cmd_parse_handler)(
 	"irq immediately\n\n"                                                               \
 	"Up to 10 sets of inject params are supported.\n"                                   \
 	"######################################################\n"
+/*add by xiaomi begin*/
+#define CAM_ISP_NON_RECOVERABLE_CSID_ERRORS_XIAOMI   \
+	(CAM_ISP_HW_ERROR_CSID_LANE_FIFO_OVERFLOW    |   \
+	 CAM_ISP_HW_ERROR_CSID_PKT_HDR_CORRUPTED     |   \
+	 CAM_ISP_HW_ERROR_CSID_MISSING_PKT_HDR_DATA  |   \
+	 CAM_ISP_HW_ERROR_CSID_FATAL                 |   \
+	 CAM_ISP_HW_ERROR_CSID_UNBOUNDED_FRAME       |   \
+	 CAM_ISP_HW_ERROR_CSID_MISSING_EOT)
+
+#define CAM_ISP_RECOVERABLE_CSID_ERRORS_XIAOMI       \
+	(CAM_ISP_HW_ERROR_CSID_SENSOR_SWITCH_ERROR   |   \
+	 CAM_ISP_HW_ERROR_CSID_PKT_PAYLOAD_CORRUPTED |   \
+	 CAM_ISP_HW_ERROR_CSID_SENSOR_FRAME_DROP)
+/*add by xiaomi end*/
 
 #define CAM_ISP_NON_RECOVERABLE_CSID_ERRORS          \
 	(CAM_ISP_HW_ERROR_CSID_LANE_FIFO_OVERFLOW    |   \
@@ -987,7 +1005,7 @@ static bool cam_ife_hw_mgr_is_sfe_rd_res(
 
 static int cam_ife_hw_mgr_reset_csid(
 	struct cam_ife_hw_mgr_ctx  *ctx,
-	int reset_type)
+	int reset_type, bool power_on_rst)
 {
 	int i;
 	int rc = 0;
@@ -1013,6 +1031,7 @@ static int cam_ife_hw_mgr_reset_csid(
 
 			reset_args.reset_type = reset_type;
 			reset_args.node_res = hw_mgr_res->hw_res[i];
+			reset_args.power_on_reset = power_on_rst;
 			rc  = hw_intf->hw_ops.reset(hw_intf->hw_priv,
 				&reset_args, sizeof(reset_args));
 			if (rc)
@@ -1235,7 +1254,7 @@ static void cam_ife_hw_mgr_deinit_hw(
 	hw_mgr = ctx->hw_mgr;
 
 	if (hw_mgr->csid_global_reset_en)
-		cam_ife_hw_mgr_reset_csid(ctx, CAM_IFE_CSID_RESET_GLOBAL);
+		cam_ife_hw_mgr_reset_csid(ctx, CAM_IFE_CSID_RESET_GLOBAL, false);
 
 	/* Deinit IFE CSID */
 	list_for_each_entry(hw_mgr_res, &ctx->res_list_ife_csid, list) {
@@ -1306,6 +1325,7 @@ static int cam_ife_hw_mgr_init_hw(
 	struct cam_ife_hw_mgr_ctx *ctx)
 {
 	struct cam_isp_hw_mgr_res *hw_mgr_res;
+	struct cam_ife_hw_mgr     *hw_mgr;
 	int rc = 0, i;
 
 	/* INIT IFE SRC */
@@ -1381,6 +1401,16 @@ static int cam_ife_hw_mgr_init_hw(
 		if (rc) {
 			CAM_ERR(CAM_ISP, "Can not INIT IFE CSID(id :%d), ctx_idx:%u",
 				 hw_mgr_res->res_id, ctx->ctx_index);
+			goto deinit;
+		}
+	}
+
+	hw_mgr = ctx->hw_mgr;
+	if (hw_mgr->csid_global_reset_en) {
+		rc = cam_ife_hw_mgr_reset_csid(ctx,
+			CAM_IFE_CSID_RESET_GLOBAL, true);
+		if (rc) {
+			CAM_ERR(CAM_ISP, "CSID reset failed, ctx_idx:%u", ctx->ctx_index);
 			goto deinit;
 		}
 	}
@@ -6332,6 +6362,9 @@ static int cam_ife_mgr_acquire(void *hw_mgr_priv,
 		CAM_ERR(CAM_ISP, "Nothing to acquire. Seems like error");
 		return -EINVAL;
 	}
+	/*add by xiaomi begin*/
+	en_csid_recovery = acquire_args->csid_recovery;
+	/*add by xiaomi end*/
 
 	if (acquire_args->num_acq == CAM_API_COMPAT_CONSTANT)
 		rc = cam_ife_mgr_acquire_hw(hw_mgr_priv, acquire_hw_args);
@@ -8416,7 +8449,7 @@ static int cam_ife_mgr_reset(void *hw_mgr_priv, void *hw_reset_args)
 
 	CAM_DBG(CAM_ISP, "Reset CSID and VFE, ctx_idx: %u", ctx->ctx_index);
 
-	rc = cam_ife_hw_mgr_reset_csid(ctx, CAM_IFE_CSID_RESET_PATH);
+	rc = cam_ife_hw_mgr_reset_csid(ctx, CAM_IFE_CSID_RESET_PATH, false);
 
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Failed to reset CSID:%d rc: %d ctx_idx: %u",
@@ -9622,8 +9655,13 @@ static int cam_isp_blob_csid_dynamic_switch_update(
 	ctx = prepare->ctxt_to_hw_map;
 	ife_hw_mgr = ctx->hw_mgr;
 
-	CAM_INFO(CAM_ISP,
-		"csid mup value=%u, ctx_idx: %u", mup_config->mup, ctx->ctx_index);
+	ctx->mup_req_id = prepare->packet->header.request_id;
+
+	CAM_DBG(CAM_ISP,
+		"csid mup value=%u, ctx_idx: %u req id %llu last_mup %ld mup_req_id %llu", 
+		mup_config->mup, ctx->ctx_index, prepare->packet->header.request_id, ctx->last_mup, ctx->mup_req_id);
+
+	ctx->last_mup = mup_config->mup;
 
 	prepare_hw_data = (struct cam_isp_prepare_hw_update_data  *)
 			prepare->priv;
@@ -14437,6 +14475,10 @@ static int cam_ife_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 				isp_hw_cmd_args->u.ctx_type = CAM_ISP_CTX_RDI;
 			else
 				isp_hw_cmd_args->u.ctx_type = CAM_ISP_CTX_PIX;
+			if (hw_mgr->csid_rup_en)
+				isp_hw_cmd_args->u.ctx_info.bubble_recover_dis  = 1;
+			else
+				isp_hw_cmd_args->u.ctx_info.bubble_recover_dis = 0;
 			break;
 		case CAM_ISP_HW_MGR_GET_PACKET_OPCODE:
 			packet = (struct cam_packet *)
@@ -15151,31 +15193,59 @@ static int cam_ife_hw_mgr_handle_csid_error(
 		CAM_ISP_HW_ERROR_CSID_CAMIF_FRAME_DROP))
 		cam_ife_hw_mgr_check_and_notify_overflow(event_info,
 			ctx, &is_bus_overflow);
-
-	if (err_type & CAM_ISP_NON_RECOVERABLE_CSID_ERRORS) {
-		recovery_data.error_type = err_type;
-		recoverable = false;
-	}
-
-	if (recoverable && (is_bus_overflow ||
-		(err_type & CAM_ISP_RECOVERABLE_CSID_ERRORS))) {
-		if (ctx->try_recovery_cnt < MAX_INTERNAL_RECOVERY_ATTEMPTS) {
-			error_event_data.try_internal_recovery = true;
-
-			if (!atomic_read(&ctx->overflow_pending))
-				ctx->try_recovery_cnt++;
-
-			if (!ctx->recovery_req_id)
-				ctx->recovery_req_id = ctx->applied_req_id;
+	/*add by xiaomi begin*/
+	if (en_csid_recovery) {
+		if (err_type & CAM_ISP_NON_RECOVERABLE_CSID_ERRORS_XIAOMI) {
+			recovery_data.error_type = err_type;
+			recoverable = false;
 		}
 
-		CAM_DBG(CAM_ISP,
-			"CSID[%u] error: %u current_recovery_cnt: %u  recovery_req: %llu on ctx: %u",
-			event_info->hw_idx, err_type, ctx->try_recovery_cnt,
-			ctx->recovery_req_id, ctx->ctx_index);
+		if (recoverable && (is_bus_overflow ||
+			(err_type & CAM_ISP_RECOVERABLE_CSID_ERRORS_XIAOMI))) {
+			if (ctx->try_recovery_cnt < MAX_INTERNAL_RECOVERY_ATTEMPTS) {
+				error_event_data.try_internal_recovery = true;
 
-		recovery_data.error_type = err_type;
-	}
+				if (!atomic_read(&ctx->overflow_pending))
+					ctx->try_recovery_cnt++;
+
+				if (!ctx->recovery_req_id)
+					ctx->recovery_req_id = ctx->applied_req_id;
+			}
+			CAM_DBG(CAM_ISP,
+				"CSID[%u] error: %u current_recovery_cnt: %u  recovery_req: %llu on ctx: %u",
+				event_info->hw_idx, err_type, ctx->try_recovery_cnt,
+				ctx->recovery_req_id, ctx->ctx_index);
+
+			recovery_data.error_type = err_type;
+		}
+
+	} else {
+	/*add by xiaomi end*/
+		if (err_type & CAM_ISP_NON_RECOVERABLE_CSID_ERRORS) {
+			recovery_data.error_type = err_type;
+			recoverable = false;
+		}
+
+		if (recoverable && (is_bus_overflow ||
+			(err_type & CAM_ISP_RECOVERABLE_CSID_ERRORS))) {
+			if (ctx->try_recovery_cnt < MAX_INTERNAL_RECOVERY_ATTEMPTS) {
+				error_event_data.try_internal_recovery = true;
+
+				if (!atomic_read(&ctx->overflow_pending))
+					ctx->try_recovery_cnt++;
+
+				if (!ctx->recovery_req_id)
+					ctx->recovery_req_id = ctx->applied_req_id;
+			}
+
+			CAM_DBG(CAM_ISP,
+				"CSID[%u] error: %u current_recovery_cnt: %u  recovery_req: %llu on ctx: %u",
+				event_info->hw_idx, err_type, ctx->try_recovery_cnt,
+				ctx->recovery_req_id, ctx->ctx_index);
+
+			recovery_data.error_type = err_type;
+		}
+	}// add by xiaomi
 
 	rc = cam_ife_hw_mgr_find_affected_ctx(&error_event_data,
 			event_info->hw_idx, &recovery_data);
@@ -16119,6 +16189,22 @@ static int cam_ife_hw_mgr_handle_sfe_event(
 
 	case CAM_ISP_HW_EVENT_DONE:
 		rc = cam_ife_hw_mgr_handle_hw_buf_done(ctx, event_info);
+		break;
+
+	case CAM_ISP_HW_EVENT_SOF:
+		if (event_info->res_id == CAM_ISP_HW_SFE_IN_RDI1) {
+			CAM_GET_TIMESTAMP_NS(ctx->rdi1_sof_timestamp);
+		    CAM_GET_TIMESTAMP_NS(ctx->rdi1_sof_timestamp_shdr);
+		}
+		else if (event_info->res_id == CAM_ISP_HW_SFE_IN_RDI2) {
+			CAM_GET_TIMESTAMP_NS(ctx->rdi2_sof_timestamp);
+			CAM_GET_TIMESTAMP_NS(ctx->rdi2_sof_timestamp_shdr);
+		}
+		else if (event_info->res_id == CAM_ISP_HW_SFE_IN_RDI4) {
+			CAM_GET_TIMESTAMP_NS(rdi4_timestamp);
+			CAM_GET_TIMESTAMP_NS(ctx->rdi4_sof_timestamp_shdr);
+			ctx->exposure_time = rdi4_timestamp - ctx->rdi2_sof_timestamp;
+		}
 		break;
 
 	default:

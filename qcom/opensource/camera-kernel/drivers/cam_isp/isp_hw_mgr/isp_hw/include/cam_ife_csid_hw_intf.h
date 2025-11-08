@@ -358,11 +358,13 @@ enum cam_ife_csid_reset_type {
  * struct cam_ife_csid_reset_cfg-  csid reset configuration
  * @ reset_type : Global reset or path reset
  * @res_node :   resource need to be reset
+ * @power_on_reset : Set if the reset is issued prior to streaming
  *
  */
 struct cam_csid_reset_cfg_args {
 	enum cam_ife_csid_reset_type   reset_type;
 	struct cam_isp_resource_node  *node_res;
+	bool power_on_reset;
 };
 
 /**

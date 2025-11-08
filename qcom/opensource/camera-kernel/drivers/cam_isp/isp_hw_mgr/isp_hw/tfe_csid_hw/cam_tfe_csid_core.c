@@ -1012,6 +1012,10 @@ static int cam_tfe_csid_path_reserve(struct cam_tfe_csid_hw *csid_hw,
 		}
 	}
 
+	/* Enable crop only for ipp */
+	if (reserve->res_id == CAM_TFE_CSID_PATH_RES_IPP)
+		path_data->crop_enable = true;
+
 	CAM_DBG(CAM_ISP,
 		"Res id: %d height:%d line_start %d line_end %d crop_en %d",
 		reserve->res_id, reserve->in_port->height,
@@ -1343,6 +1347,7 @@ static int cam_tfe_csid_enable_hw(struct cam_tfe_csid_hw  *csid_hw)
 	csid_hw->fatal_err_detected = false;
 	csid_hw->device_enabled = 1;
 	spin_unlock_irqrestore(&csid_hw->spin_lock, flags);
+	cam_tasklet_start(csid_hw->tasklet);
 
 	if (csid_hw->pxl_pipe_enable ) {
 		path_data = (struct cam_tfe_csid_path_cfg  *)
@@ -1413,6 +1418,8 @@ static int cam_tfe_csid_disable_hw(struct cam_tfe_csid_hw *csid_hw)
 	/* Disable the top IRQ interrupt */
 	cam_io_w_mb(0, soc_info->reg_map[0].mem_base +
 		csid_reg->cmn_reg->csid_top_irq_mask_addr);
+
+	cam_tasklet_stop(csid_hw->tasklet);
 
 	rc = cam_tfe_csid_disable_soc_resources(soc_info);
 	if (rc)
@@ -2899,6 +2906,9 @@ static int cam_tfe_csid_init_hw(void *hw_priv,
 	rc = cam_tfe_csid_reset_retain_sw_reg(csid_hw);
 	if (rc < 0)
 		CAM_ERR(CAM_ISP, "CSID: Failed in SW reset");
+
+	if (rc)
+		cam_tfe_csid_disable_hw(csid_hw);
 
 	spin_lock_irqsave(&csid_hw->spin_lock, flags);
 	csid_hw->device_enabled = 1;

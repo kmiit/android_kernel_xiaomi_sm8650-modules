@@ -36,7 +36,8 @@
 #define CAM_IFE_CSID_TIMEOUT_SLEEP_US                  1000
 #define CAM_IFE_CSID_TIMEOUT_ALL_US                    100000
 
-#define CAM_IFE_CSID_RESET_TIMEOUT_MS                  100
+/* Xiaomi change this value from 100ms to 200ms */
+#define CAM_IFE_CSID_RESET_TIMEOUT_MS                  200
 
 /*
  * Constant Factors needed to change QTimer ticks to nanoseconds
@@ -57,6 +58,46 @@
 #define CAM_IFE_CSID_MAX_OUT_OF_SYNC_ERR_COUNT         3
 
 #define CAM_CSID_IRQ_CTRL_NAME_LEN                     10
+
+/* xiaomi add ife_mqs_node1 begin */
+static int ife_mqs_node1_cnt  = 20;
+static long ife_mqs_node1[20] = {0};
+module_param_array(ife_mqs_node1, long, &ife_mqs_node1_cnt, 0644);
+
+static void count_ife_error(uint32_t index)
+{
+	struct timespec64   timestamp;
+	uint32_t            phy_id = 0;
+	if (index < ife_mqs_node1_cnt && index >= 0)
+	{
+		phy_id = index;
+		CAM_GET_TIMESTAMP(timestamp);
+		ife_mqs_node1[phy_id] = timestamp.tv_sec;
+		CAM_ERR(CAM_ISP, "set ife error node1: phy_id: %d, timestamp: sec: %ld, nsec: %ld",
+				phy_id, timestamp.tv_sec, timestamp.tv_nsec);
+	}
+}
+
+/* xiaomi add ife_mqs_node1 end */
+
+/* xiaomi add record crc start */
+static int record_crc_time_cnt  = 20;
+static long record_crc_time[20] = {0};
+module_param_array(record_crc_time, long, &record_crc_time_cnt, 0644);
+static void record_crc_error(uint32_t index)
+{
+	struct timespec64   timestamp;
+	uint32_t            phy_id = 0;
+	if (index < ife_mqs_node1_cnt && index >= 0)
+	{
+		phy_id = index;
+		CAM_GET_TIMESTAMP(timestamp);
+		record_crc_time[phy_id] = timestamp.tv_sec;
+		CAM_ERR(CAM_ISP, "set crc error for phy_id: %d, timestamp: sec: %ld, nsec: %ld",
+				phy_id, timestamp.tv_sec, timestamp.tv_nsec);
+	}
+}
+/* xiaomi add record crc start */
 
 static void cam_ife_csid_ver2_print_debug_reg_status(
 	struct cam_ife_csid_ver2_hw *csid_hw,
@@ -181,6 +222,13 @@ static void cam_ife_csid_ver2_print_camif_timestamps(
 			path_cfg->sof_ts.tv_sec, path_cfg->sof_ts.tv_nsec,
 			path_cfg->epoch_ts.tv_sec, path_cfg->epoch_ts.tv_nsec,
 			path_cfg->eof_ts.tv_sec, path_cfg->eof_ts.tv_nsec);
+
+
+		if (found && path_cfg->handle_camif_irq)
+			CAM_INFO(CAM_ISP,
+				"CSID[%u] %s EPOCH[%lld:%lld]",
+				csid_hw->hw_intf->hw_idx, res->res_name,
+				path_cfg->epoch_ts.tv_sec, path_cfg->epoch_ts.tv_nsec);
 
 		if (!path_reg) {
 			CAM_ERR(CAM_ISP, "CSID:%d no path registers for res :%d",
@@ -1345,6 +1393,7 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 	uint32_t                                    long_pkt_ftr_val;
 	uint32_t                                    total_crc;
 	int                                         data_idx = 0;
+	int                                         phy_idx = 0;
 
 	if (!handler_priv || !evt_payload_priv) {
 		CAM_ERR(CAM_ISP, "Invalid params");
@@ -1364,6 +1413,9 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 
 	irq_status = payload->irq_reg_val &
 			csi2_reg->fatal_err_mask[CAM_IFE_CSID_RX_IRQ_STATUS_REG0];
+
+
+	phy_idx = (int)(csid_hw->rx_cfg.phy_sel - csid_reg->cmn_reg->phy_sel_base_idx);
 
 	if (!csid_hw->flags.device_enabled) {
 		CAM_DBG(CAM_ISP, "CSID[%u] bottom-half after stop [0x%x]",
@@ -1396,12 +1448,17 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 			CAM_ERR_BUF(CAM_ISP, log_buf, CAM_IFE_CSID_LOG_BUF_LEN, &len,
 				"INPUT_FIFO_OVERFLOW [Lanes:%s]: Skew/Less Data on lanes/ Slow csid clock:%luHz",
 				tmp_buf, cam_soc_util_get_applied_src_clk(soc_info, true));
+			count_mipi_error(csid_hw->res_type);//add by xiaomi
 		}
 
 		if (irq_status & IFE_CSID_VER2_RX_ERROR_CPHY_PH_CRC) {
 			event_type |= CAM_ISP_HW_ERROR_CSID_PKT_HDR_CORRUPTED;
+
+			count_ife_error(phy_idx);
+
 			CAM_ERR_BUF(CAM_ISP, log_buf, CAM_IFE_CSID_LOG_BUF_LEN, &len,
 				"CPHY_PH_CRC: Pkt Hdr CRC mismatch");
+			count_mipi_error(csid_hw->res_type);//add by xiaomi
 		}
 
 		if (irq_status & IFE_CSID_VER2_RX_STREAM_UNDERFLOW) {
@@ -1409,24 +1466,32 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 			val = cam_io_r_mb(soc_info->reg_map[0].mem_base +
 				csi2_reg->captured_long_pkt_0_addr);
 
+			count_ife_error(phy_idx);
+
 			CAM_ERR_BUF(CAM_ISP, log_buf, CAM_IFE_CSID_LOG_BUF_LEN, &len,
 				"STREAM_UNDERFLOW: Fewer bytes rcvd than WC:%d in pkt hdr",
 				val & 0xFFFF);
+			count_mipi_error(csid_hw->res_type);//add by xiaomi
 		}
 
 		if (irq_status & IFE_CSID_VER2_RX_ERROR_ECC) {
 			event_type |= CAM_ISP_HW_ERROR_CSID_PKT_HDR_CORRUPTED;
+
+			count_ife_error(phy_idx);
+
 			CAM_ERR_BUF(CAM_ISP, log_buf,
 				CAM_IFE_CSID_LOG_BUF_LEN, &len,
 				"DPHY_ERROR_ECC: Pkt hdr errors unrecoverable. ECC: 0x%x",
 				 cam_io_r_mb(soc_info->reg_map[0].mem_base +
 					csi2_reg->captured_long_pkt_1_addr));
+			count_mipi_error(csid_hw->res_type);//add by xiaomi
 		}
 
 		if (irq_status & IFE_CSID_VER2_RX_UNBOUNDED_FRAME) {
 			event_type |= CAM_ISP_HW_ERROR_CSID_UNBOUNDED_FRAME;
 			CAM_ERR_BUF(CAM_ISP, log_buf, CAM_IFE_CSID_LOG_BUF_LEN, &len,
 				"UNBOUNDED_FRAME: Frame started with EOF or No EOF");
+			count_mipi_error(csid_hw->res_type);//add by xiaomi
 		}
 
 		if (irq_status & IFE_CSID_VER2_RX_CPHY_EOT_RECEPTION) {
@@ -1436,6 +1501,7 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 				(csid_hw->rx_cfg.epd_supported & CAM_ISP_EPD_SUPPORT) ? 'Y' : 'N',
 				(csid_hw->rx_cfg.lane_type) ? "cphy" : "dphy",
 				csid_hw->rx_cfg.lane_type);
+			count_mipi_error(csid_hw->res_type);//add by xiaomi
 		}
 
 		if (irq_status & IFE_CSID_VER2_RX_ERROR_CRC) {
@@ -1444,6 +1510,9 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 				csi2_reg->captured_long_pkt_ftr_addr);
 			total_crc = cam_io_r_mb(soc_info->reg_map[0].mem_base +
 				csi2_reg->total_crc_err_addr);
+
+			count_ife_error(phy_idx);
+			record_crc_error(phy_idx);//add by xiaomi for auto eq
 
 			if (csid_hw->rx_cfg.lane_type == CAM_ISP_LANE_TYPE_CPHY) {
 				val = cam_io_r_mb(soc_info->reg_map[0].mem_base +
@@ -1461,6 +1530,7 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 					total_crc, long_pkt_ftr_val & 0xffff,
 					long_pkt_ftr_val >> 16);
 			}
+			count_mipi_error(csid_hw->res_type);//add by xiaomi
 		}
 
 		CAM_ERR(CAM_ISP, "CSID[%u] Fatal Errors: %s", csid_hw->hw_intf->hw_idx, log_buf);
@@ -1477,6 +1547,8 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 		if (irq_status & IFE_CSID_VER2_RX_CPHY_SOT_RECEPTION) {
 			CAM_ERR_BUF(CAM_ISP, log_buf, CAM_IFE_CSID_LOG_BUF_LEN, &len,
 				"CPHY_SOT_RECEPTION: Less SOTs on lane/s");
+			count_ife_error(phy_idx);
+			count_mipi_error(csid_hw->res_type);//add by xiaomi
 		}
 
 		CAM_ERR(CAM_ISP, "CSID[%u] Partly fatal errors: %s",
@@ -1496,6 +1568,7 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 			CAM_ERR_BUF(CAM_ISP, log_buf, CAM_IFE_CSID_LOG_BUF_LEN, &len,
 				"MMAPPED_VC_DT: VC:%d DT:%d mapped to more than 1 csid paths",
 				(val >> 22), ((val >> 16) & 0x3F));
+			count_mipi_error(csid_hw->res_type);//add by xiaomi
 		}
 
 		CAM_ERR(CAM_ISP, "CSID[%u] Non-fatal-errors: %s",
@@ -2496,6 +2569,20 @@ static int cam_ife_csid_ver2_wait_for_reset(
 {
 	unsigned long rem_jiffies = 0;
 	int rc = 0;
+	struct cam_ife_csid_ver2_reg_info *csid_reg;
+	struct cam_hw_soc_info                *soc_info;
+	void __iomem *mem_base;
+	int val = 0;
+	int top_irq_val[4] = {0};
+	int rx_cfg[2] = {0};
+	int csid_cfg0 = 0;
+	int reset_cfg = 0;
+	uint32_t clk_lvl;
+
+	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
+			csid_hw->core_info->csid_reg;
+	soc_info = &csid_hw->hw_info->soc_info;
+	mem_base = soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base;
 
 	rem_jiffies = cam_common_wait_for_completion_timeout(
 		&csid_hw->hw_info->hw_complete,
@@ -2514,16 +2601,66 @@ static int cam_ife_csid_ver2_wait_for_reset(
 				cam_io_r_mb(
 					soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base +
 					csid_reg->cmn_reg->test_bus_debug));
-		} else
-			CAM_ERR(CAM_ISP, "CSID[%u], sync-mode[%d] reset timed out",
-				csid_hw->hw_intf->hw_idx, csid_hw->sync_mode);
+		}
 
-		cam_ife_csid_ver2_dump_imp_regs(csid_hw);
-	} else
+		val = cam_io_r_mb(mem_base + csid_reg->cmn_reg->top_irq_status_addr[0]);
+		if (val & csid_reg->cmn_reg->top_reset_irq_mask[0]) {
+			CAM_WARN(CAM_ISP,
+				"CSID[%d], mode[%d] reset done, scheduling delay, status 0x%0x",
+				csid_hw->hw_intf->hw_idx,
+				csid_hw->sync_mode, val);
+		
+		} else {
+			CAM_ERR(CAM_ISP,
+				"CSID[%d], sync-mode[%d] reset time out, TOP IRQ status= 0x%x",
+				csid_hw->hw_intf->hw_idx,
+				csid_hw->sync_mode, val);
+
+			/* Dumping CSID top cfg register */
+			top_irq_val[0] = cam_io_r_mb(mem_base +
+				csid_reg->cmn_reg->top_irq_status_addr[0]);
+			top_irq_val[1] = cam_io_r_mb(mem_base +
+				csid_reg->cmn_reg->top_irq_mask_addr[0]);
+			top_irq_val[2] = cam_io_r_mb(mem_base +
+				csid_reg->cmn_reg->top_irq_clear_addr[0]);
+			top_irq_val[3] = cam_io_r_mb(mem_base +
+				csid_reg->cmn_reg->top_irq_set_addr[0]);
+			csid_cfg0 = cam_io_r_mb(mem_base +
+				csid_reg->cmn_reg->cfg0_addr);
+
+			reset_cfg = cam_io_r_mb(mem_base + csid_reg->cmn_reg->reset_cfg_addr);
+			rx_cfg[0] = cam_io_r_mb(mem_base + csid_reg->csi2_reg->cfg0_addr);
+			rx_cfg[1] = cam_io_r_mb(mem_base + csid_reg->csi2_reg->cfg1_addr);
+
+			CAM_INFO(CAM_ISP,
+				"CSID[%d] csid top status 0x%x, mask 0x%x, clr 0x%x, set 0x%x",
+				 csid_hw->hw_intf->hw_idx, top_irq_val[0],
+				top_irq_val[1], top_irq_val[2], top_irq_val[3]);
+
+			CAM_INFO(CAM_ISP,
+				"CSID[%d] cfg0 0x%x, reset cfg 0x%x, rx_cfg0 0x%x, rx_cfg1 0x%x",
+				csid_hw->hw_intf->hw_idx, csid_cfg0,
+				reset_cfg, rx_cfg[0], rx_cfg[1]);
+
+			/* Dumping CSID Clock */
+			rc = cam_soc_util_get_clk_level(soc_info, csid_hw->clk_rate,
+				soc_info->src_clk_idx, &clk_lvl);
+
+			CAM_INFO(CAM_ISP,
+				"CSID[%d] clk lvl %u received clk_rate %u applied clk_rate sw_client:%lu hw_client:[%lu %lu]",
+				csid_hw->hw_intf->hw_idx, clk_lvl, csid_hw->clk_rate,
+				soc_info->applied_src_clk_rates.sw_client,
+				soc_info->applied_src_clk_rates.hw_client[csid_hw->hw_intf->hw_idx].high,
+				soc_info->applied_src_clk_rates.hw_client[csid_hw->hw_intf->hw_idx].low);
+
+			rc = -ETIMEDOUT;
+		}
+	} else {
 		CAM_DBG(CAM_ISP,
-			"CSID[%u], sync-mode[%d] reset success",
-			csid_hw->hw_intf->hw_idx,
-			csid_hw->sync_mode);
+		"CSID[%u], sync-mode[%d] reset success",
+		csid_hw->hw_intf->hw_idx,
+		csid_hw->sync_mode);
+	}
 
 	return rc;
 }
@@ -2544,7 +2681,7 @@ static int cam_ife_csid_ver2_reset_irq_top_half(uint32_t    evt_id,
 }
 
 static int cam_ife_csid_ver2_internal_reset(
-	struct cam_ife_csid_ver2_hw *csid_hw,
+	struct cam_ife_csid_ver2_hw *csid_hw, bool power_on_rst,
 	uint32_t rst_cmd, uint32_t rst_location, uint32_t rst_mode)
 {
 	uint32_t val = 0;
@@ -2573,8 +2710,17 @@ static int cam_ife_csid_ver2_internal_reset(
 		cam_io_w_mb(0x0, mem_base + csi2_reg->cfg1_addr);
 	}
 
-	if (csid_hw->sync_mode == CAM_ISP_HW_SYNC_SLAVE)
+	/*
+	 * After power on once the connection has been established
+	 * between master and slave CSIDs, issuing a reset to master
+	 * will also reset the slave. Reset to the slave is only needed
+	 * when powering on the cores since at this point the master-slave
+	 * connection is not established yet
+	 */
+	if ((csid_hw->sync_mode == CAM_ISP_HW_SYNC_SLAVE) && (!power_on_rst))
 		goto wait_only;
+
+	CAM_DBG(CAM_ISP, "CSID[%u] issuing reset", csid_hw->hw_intf->hw_idx);
 
 	reinit_completion(&csid_hw->hw_info->hw_complete);
 
@@ -2636,14 +2782,16 @@ int cam_ife_csid_ver2_reset(void *hw_priv,
 
 	switch (reset->reset_type) {
 	case CAM_IFE_CSID_RESET_GLOBAL:
-		rc = cam_ife_csid_ver2_internal_reset(csid_hw,
+		rc = cam_ife_csid_ver2_internal_reset(
+			csid_hw, reset->power_on_reset,
 			CAM_IFE_CSID_RESET_CMD_SW_RST,
 			CAM_IFE_CSID_RESET_LOC_COMPLETE,
 			CAM_CSID_HALT_IMMEDIATELY);
 		break;
 
 	case CAM_IFE_CSID_RESET_PATH:
-		rc = cam_ife_csid_ver2_internal_reset(csid_hw,
+		rc = cam_ife_csid_ver2_internal_reset(
+			csid_hw, reset->power_on_reset,
 			CAM_IFE_CSID_RESET_CMD_HW_RST,
 			CAM_IFE_CSID_RESET_LOC_PATH_ONLY,
 			CAM_CSID_HALT_IMMEDIATELY);

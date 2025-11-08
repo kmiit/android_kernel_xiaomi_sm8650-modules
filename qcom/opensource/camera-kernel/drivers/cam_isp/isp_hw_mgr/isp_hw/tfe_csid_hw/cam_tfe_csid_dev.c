@@ -64,6 +64,8 @@ static int cam_tfe_csid_component_bind(struct device *dev,
 		goto free_hw_info;
 	}
 
+	/* get tfe csid hw index */
+	of_property_read_u32(pdev->dev.of_node, "cell-index", &csid_dev_idx);
 	/* get tfe csid hw information */
 	match_dev = of_match_device(pdev->dev.driver->of_match_table,
 		&pdev->dev);

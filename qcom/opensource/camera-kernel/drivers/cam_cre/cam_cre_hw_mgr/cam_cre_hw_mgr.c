@@ -410,6 +410,10 @@ static int cam_cre_mgr_remove_bw(struct cam_cre_hw_mgr *hw_mgr, int ctx_id)
 			ctx_data->clk_info.axi_path[i].mnoc_ab_bw;
 		hw_mgr_clk_info->axi_path[path_index].mnoc_ib_bw -=
 			ctx_data->clk_info.axi_path[i].mnoc_ib_bw;
+		hw_mgr_clk_info->axi_path[path_index].ddr_ab_bw -=
+			ctx_data->clk_info.axi_path[i].ddr_ab_bw;
+		hw_mgr_clk_info->axi_path[path_index].ddr_ib_bw -=
+			ctx_data->clk_info.axi_path[i].ddr_ib_bw;
 	}
 
 	rc = cam_cre_update_cpas_vote(hw_mgr, ctx_data);
@@ -478,6 +482,10 @@ static bool cam_cre_update_bw_v2(struct cam_cre_hw_mgr *hw_mgr,
 			ctx_data->clk_info.axi_path[i].mnoc_ab_bw;
 		hw_mgr_clk_info->axi_path[path_index].mnoc_ib_bw -=
 			ctx_data->clk_info.axi_path[i].mnoc_ib_bw;
+		hw_mgr_clk_info->axi_path[path_index].ddr_ab_bw -=
+			ctx_data->clk_info.axi_path[i].ddr_ab_bw;
+		hw_mgr_clk_info->axi_path[path_index].ddr_ib_bw -=
+			ctx_data->clk_info.axi_path[i].ddr_ib_bw;
 	}
 
 	ctx_data->clk_info.num_paths =
@@ -515,6 +523,10 @@ static bool cam_cre_update_bw_v2(struct cam_cre_hw_mgr *hw_mgr,
 			ctx_data->clk_info.axi_path[i].mnoc_ab_bw;
 		hw_mgr_clk_info->axi_path[path_index].mnoc_ib_bw +=
 			ctx_data->clk_info.axi_path[i].mnoc_ib_bw;
+		hw_mgr_clk_info->axi_path[path_index].ddr_ab_bw +=
+			ctx_data->clk_info.axi_path[i].ddr_ab_bw;
+		hw_mgr_clk_info->axi_path[path_index].ddr_ib_bw +=
+			ctx_data->clk_info.axi_path[i].ddr_ib_bw;
 		CAM_DBG(CAM_CRE,
 			"Consolidate Path Vote : Dev[%s] i[%d] path_idx[%d] : [%s %s] [%lld %lld]",
 			ctx_data->cre_acquire.dev_name,
@@ -1813,6 +1825,8 @@ static int cam_cre_mgr_acquire_hw(void *hw_priv, void *hw_acquire_args)
 			hw_mgr->clk_info.axi_path[i].camnoc_bw = 0;
 			hw_mgr->clk_info.axi_path[i].mnoc_ab_bw = 0;
 			hw_mgr->clk_info.axi_path[i].mnoc_ib_bw = 0;
+			hw_mgr->clk_info.axi_path[i].ddr_ab_bw = 0;
+			hw_mgr->clk_info.axi_path[i].ddr_ib_bw = 0;
 		}
 	}
 
@@ -1860,6 +1874,8 @@ static int cam_cre_mgr_acquire_hw(void *hw_priv, void *hw_acquire_args)
 		bw_update->axi_vote.axi_path[0].camnoc_bw = 600000000;
 		bw_update->axi_vote.axi_path[0].mnoc_ab_bw = 600000000;
 		bw_update->axi_vote.axi_path[0].mnoc_ib_bw = 600000000;
+		bw_update->axi_vote.axi_path[0].ddr_ab_bw = 600000000;
+		bw_update->axi_vote.axi_path[0].ddr_ib_bw = 600000000;
 		bw_update->axi_vote.axi_path[0].transac_type =
 			CAM_AXI_TRANSACTION_WRITE;
 		bw_update->axi_vote.axi_path[0].path_data_type =
@@ -2307,6 +2323,7 @@ static int cam_cre_mgr_prepare_hw_update(void *hw_priv,
 
 	prepare_args->num_hw_update_entries = 1;
 	prepare_args->priv = ctx_data->req_list[request_idx];
+	cre_req->hang_data.packet = packet;
 	ktime_get_boottime_ts64(&ts);
 	ctx_data->last_req_time = (uint64_t)((ts.tv_sec * 1000000000) +
 		ts.tv_nsec);
