@@ -192,6 +192,9 @@ struct cam_hw_acquire_args {
 	uint32_t                     hw_mgr_ctx_id;
 	uint32_t                     op_flags;
 	int32_t                      link_hdl;
+	/*add by xiaomi begin*/
+	uint32_t                     csid_recovery;
+	/*add by xiaomi end*/
 	uint32_t                     acquired_hw_id[CAM_MAX_ACQ_RES];
 	uint32_t                     acquired_hw_path[CAM_MAX_ACQ_RES][CAM_MAX_HW_SPLIT];
 	uint32_t                     valid_acquired_hw;

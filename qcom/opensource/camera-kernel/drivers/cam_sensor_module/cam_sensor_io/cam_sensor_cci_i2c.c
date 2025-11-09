@@ -56,6 +56,54 @@ int32_t cam_cci_i2c_read(struct cam_sensor_cci_client *cci_client,
 	return rc;
 }
 
+int32_t cam_cci_i2c_read_with_little_endian(struct cam_sensor_cci_client *cci_client,
+	uint32_t addr, uint32_t *data,
+	enum camera_sensor_i2c_type addr_type,
+	enum camera_sensor_i2c_type data_type,
+	bool is_probing)
+{
+	int32_t rc = -EINVAL;
+	unsigned char buf[CAMERA_SENSOR_I2C_TYPE_DWORD];
+	struct cam_cci_ctrl cci_ctrl;
+
+	if (addr_type <= CAMERA_SENSOR_I2C_TYPE_INVALID
+		|| addr_type >= CAMERA_SENSOR_I2C_TYPE_MAX
+		|| data_type <= CAMERA_SENSOR_I2C_TYPE_INVALID
+		|| data_type >= CAMERA_SENSOR_I2C_TYPE_MAX)
+		return rc;
+
+	cci_ctrl.is_probing = is_probing;
+	cci_ctrl.cmd = MSM_CCI_I2C_READ;
+	cci_ctrl.cci_info = cci_client;
+	cci_ctrl.cfg.cci_i2c_read_cfg.addr = addr;
+	cci_ctrl.cfg.cci_i2c_read_cfg.addr_type = addr_type;
+	cci_ctrl.cfg.cci_i2c_read_cfg.data_type = data_type;
+	cci_ctrl.cfg.cci_i2c_read_cfg.data = buf;
+	cci_ctrl.cfg.cci_i2c_read_cfg.num_byte = data_type;
+	rc = v4l2_subdev_call(cci_client->cci_subdev,
+		core, ioctl, VIDIOC_MSM_CCI_CFG, &cci_ctrl);
+	if (rc < 0) {
+		if (is_probing)
+			CAM_INFO(CAM_SENSOR, "rc = %d", rc);
+		else
+			CAM_ERR(CAM_SENSOR, "rc = %d", rc);
+		return rc;
+	}
+
+	rc = cci_ctrl.status;
+	if (data_type == CAMERA_SENSOR_I2C_TYPE_BYTE)
+		*data = buf[0];
+	else if (data_type == CAMERA_SENSOR_I2C_TYPE_WORD)
+		*data = buf[1] << 8 | buf[0];
+	else if (data_type == CAMERA_SENSOR_I2C_TYPE_3B)
+		*data = buf[2] << 16 | buf[1] << 8 | buf[0];
+	else
+		*data = buf[3] << 24 | buf[2] << 16 |
+			buf[1] << 8 | buf[0];
+	CAM_DBG(CAM_OIS, "[S10]read addr 0x%x data 0x%x", addr, *data);
+	return rc;
+}
+
 int32_t cam_camera_cci_i2c_read_seq(struct cam_sensor_cci_client *cci_client,
 	uint32_t addr, uint8_t *data,
 	enum camera_sensor_i2c_type addr_type,

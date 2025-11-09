@@ -273,7 +273,7 @@
 #define HFI_DEBUG_CFG_WFI        0x01000000
 #define HFI_DEBUG_CFG_ARM9WD     0x10000000
 
-#define HFI_DEV_VERSION_MAX      0x4
+#define HFI_DEV_VERSION_MAX      0x6
 
 #define ICP_PWR_CLP_BPS          0x00000001
 #define ICP_PWR_CLP_IPE0         0x00010000
