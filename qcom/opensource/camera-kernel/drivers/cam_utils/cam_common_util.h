@@ -58,6 +58,13 @@
 	}                                                                                    \
 })
 
+#define CAM_GET_TIMESTAMP_NS(timestamp)                  \
+({                                                       \
+	struct timespec64 current_ts;                        \
+	CAM_GET_TIMESTAMP(current_ts);                       \
+	timestamp = (current_ts.tv_sec % 1000) * 1000 * CAM_COMMON_NS_PER_MS + current_ts.tv_nsec; \
+})
+
 #define CAM_CONVERT_TIMESTAMP_FORMAT(ts, hrs, min, sec, ms)                                  \
 ({                                                                                           \
 	uint64_t tmp = ((ts).tv_sec);                                                        \
