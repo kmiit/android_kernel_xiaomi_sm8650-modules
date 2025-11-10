@@ -222,7 +222,8 @@ int32_t cam_cci_i2c_write_continuous_table(
 static int32_t cam_cci_i2c_compare(struct cam_sensor_cci_client *client,
 	uint32_t addr, uint16_t data, uint16_t data_mask,
 	enum camera_sensor_i2c_type data_type,
-	enum camera_sensor_i2c_type addr_type)
+	enum camera_sensor_i2c_type addr_type,
+	uint32_t *read_data)
 {
 	int32_t rc;
 	uint32_t reg_data = 0;
@@ -232,12 +233,19 @@ static int32_t cam_cci_i2c_compare(struct cam_sensor_cci_client *client,
 	if (rc < 0)
 		return rc;
 
+	CAM_DBG(CAM_SENSOR, "addr %04x, %04x,compare data = %d", addr, reg_data, (int16_t)reg_data);
+
 	reg_data = reg_data & 0xFFFF;
+	/* xiaomi add I2C trace begin */
+	trace_poll_i2c_compare(data, (reg_data & ~data_mask));
+
+	*read_data = reg_data;
+	/* xiaomi add I2C trace end */
 	if (data == (reg_data & ~data_mask))
 		return I2C_COMPARE_MATCH;
 	else {
-		CAM_WARN(CAM_SENSOR,
-			"mismatch: reg_data 0x%x: data: 0x%x, data_mask: 0x%x",
+		CAM_DBG(CAM_SENSOR,
+			"mismatch: read_data 0x%x: compare_data: 0x%x, data_mask: 0x%x",
 			reg_data, data, data_mask);
 		return I2C_COMPARE_MISMATCH;
 	}
@@ -251,6 +259,7 @@ int32_t cam_cci_i2c_poll(struct cam_sensor_cci_client *client,
 {
 	int32_t rc = -EINVAL;
 	int32_t i = 0;
+	int32_t read_data = 0;
 
 	CAM_DBG(CAM_SENSOR, "addr: 0x%x data: 0x%x dt: %d",
 		addr, data, data_type);
@@ -262,19 +271,93 @@ int32_t cam_cci_i2c_poll(struct cam_sensor_cci_client *client,
 	}
 	for (i = 0; i < delay_ms; i++) {
 		rc = cam_cci_i2c_compare(client,
+			addr, data, data_mask, data_type, addr_type,&read_data);
+		if (!rc)
+			return rc;
+
+		if(rc < 0){
+			CAM_ERR(CAM_SENSOR, "cam_cci_i2c_compare rc = %d", rc);
+			break;
+		}
+
+		usleep_range(1000, 1010);
+	}
+
+	/* If rc is 1 then read is successful but poll is failure */
+	if (I2C_COMPARE_MISMATCH == rc)
+		CAM_WARN(CAM_SENSOR, "compare mismatch: addr:0x%x data:0x%x "
+			"read data:[0x%x] rc = %d",
+			addr, data, read_data, rc);
+
+	if (rc < 0)
+		CAM_ERR(CAM_SENSOR, "poll failed rc=%d", rc);
+
+	return rc;
+}
+
+static int32_t cam_cci_i2c_compare_with_32(struct cam_sensor_cci_client *client,
+	uint32_t addr, uint32_t data, uint32_t data_mask,
+	enum camera_sensor_i2c_type data_type,
+	enum camera_sensor_i2c_type addr_type)
+{
+	int32_t rc;
+	uint32_t reg_data = 0;
+
+	rc = cam_cci_i2c_read_with_little_endian(client, addr, &reg_data,
+		addr_type, data_type, false);
+	if (rc < 0)
+		return rc;
+
+	reg_data = reg_data & 0xFFFFFFFF;
+	/* xiaomi add I2C trace begin */
+	trace_poll_i2c_compare(data, (reg_data & ~data_mask));
+	/* xiaomi add I2C trace end */
+	if (data == (reg_data & ~data_mask)) {
+		return I2C_COMPARE_MATCH;
+	} else {
+		CAM_WARN(CAM_OIS,
+			"[S10]mismatch_with_32: reg_data 0x%x: data_mask: 0x%x ,data: 0x%x",
+			reg_data, ~data_mask, data);
+		return I2C_COMPARE_MISMATCH;
+	}
+}
+
+int32_t cam_cci_i2c_poll_with_32(struct cam_sensor_cci_client *client,
+	uint32_t addr, uint32_t data, uint32_t data_mask,
+	enum camera_sensor_i2c_type data_type,
+	enum camera_sensor_i2c_type addr_type,
+	uint32_t delay_ms)
+{
+	int32_t rc = -EINVAL;
+	int32_t i = 0;
+
+	CAM_DBG(CAM_OIS, "[S10]addr: 0x%x data: 0x%x data_type: %d delay_ms %d",
+		addr, data, data_type, delay_ms);
+
+	if (delay_ms > (MAX_POLL_DELAY_MS * 3)) {
+		CAM_ERR(CAM_OIS, "[S10]invalid delay = %d max_delay = %d",
+			delay_ms, (MAX_POLL_DELAY_MS * 3));
+		return -EINVAL;
+	}
+	for (i = 0; i < delay_ms; i++) {
+		rc = cam_cci_i2c_compare_with_32(client,
 			addr, data, data_mask, data_type, addr_type);
 		if (!rc)
 			return rc;
+		if(rc < 0){
+			CAM_ERR(CAM_OIS, "[S10]cam_cci_i2c_compare_with_32 rc = %d", rc);
+			break;
+		}
 
 		usleep_range(1000, 1010);
 	}
 
 	/* If rc is 1 then read is successful but poll is failure */
 	if (rc == 1)
-		CAM_ERR(CAM_SENSOR, "poll failed rc=%d(non-fatal)",	rc);
+		CAM_ERR(CAM_OIS, "[S10]poll_with_32 failed rc=%d(non-fatal)",	rc);
 
 	if (rc < 0)
-		CAM_ERR(CAM_SENSOR, "poll failed rc=%d", rc);
+		CAM_ERR(CAM_OIS, "[S10]poll_with_32 failed rc=%d", rc);
 
 	return rc;
 }
