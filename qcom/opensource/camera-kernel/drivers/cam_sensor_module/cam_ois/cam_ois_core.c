@@ -2506,7 +2506,7 @@ int cam_ois_driver_cmd(struct cam_ois_ctrl_t *o_ctrl, void *arg)
 			goto release_mutex;
 		}
 		break;
-	case CAM_RELEASE_DEV:
+	case CAM_RELEASE_DEV:{
 		struct i2c_settings_array *i2c_set = NULL; // xiaomi add
 
 		if (o_ctrl->cam_ois_state == CAM_OIS_START) {
@@ -2617,6 +2617,7 @@ int cam_ois_driver_cmd(struct cam_ois_ctrl_t *o_ctrl, void *arg)
 				cam_cci_read_damage_count(&o_ctrl->cci_err_info));
 		// xiaomi add end
 		break;
+	}
 	case CAM_STOP_DEV:
 		if (o_ctrl->cam_ois_state != CAM_OIS_START) {
 			rc = -EINVAL;
