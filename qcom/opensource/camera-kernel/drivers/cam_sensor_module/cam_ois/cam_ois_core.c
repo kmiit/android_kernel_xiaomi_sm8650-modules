@@ -2318,7 +2318,7 @@ pwr_dwn:
 	cam_ois_power_down(o_ctrl);
 end:
 	cam_common_mem_free(csl_packet);
-put_ref:
+//put_ref:
 	cam_mem_put_cpu_buf(dev_config.packet_handle);
 	return rc;
 }

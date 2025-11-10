@@ -6908,7 +6908,7 @@ static int __cam_isp_ctx_release_hw_in_top_state(struct cam_context *ctx,
 	ctx_isp->init_received = false;
 	ctx_isp->support_consumed_addr = false;
 	ctx_isp->aeb_enabled = false;
-	ctx_isp->sfe_en = false;
+
 	ctx_isp->req_info.last_bufdone_req_id = 0;
 	kfree(ctx_isp->vfe_bus_comp_grp);
 	kfree(ctx_isp->sfe_bus_comp_grp);
