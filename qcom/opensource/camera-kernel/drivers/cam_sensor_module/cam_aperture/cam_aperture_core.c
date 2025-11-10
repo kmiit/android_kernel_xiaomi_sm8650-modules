@@ -876,7 +876,7 @@ int32_t cam_aperture_i2c_pkt_parse(struct cam_aperture_ctrl_t *a_ctrl,
 					rc = cam_sensor_handle_continuous_write(
 						cam_cmd_i2c_continuous_wr,
 						i2c_reg_settings,
-						&cmd_length_in_bytes, &j, &list);
+						&cmd_length_in_bytes, &j, &list, cam_cmd_i2c_continuous_wr->header.count);
 					if (rc < 0) {
 						CAM_ERR(CAM_APERTURE,
 						"Failed in continuous write %d", rc);
