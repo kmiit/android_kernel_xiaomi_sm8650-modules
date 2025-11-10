@@ -223,6 +223,13 @@ static void cam_ife_csid_ver2_print_camif_timestamps(
 			path_cfg->epoch_ts.tv_sec, path_cfg->epoch_ts.tv_nsec,
 			path_cfg->eof_ts.tv_sec, path_cfg->eof_ts.tv_nsec);
 
+
+		if (found && path_cfg->handle_camif_irq)
+			CAM_INFO(CAM_ISP,
+				"CSID[%u] %s EPOCH[%lld:%lld]",
+				csid_hw->hw_intf->hw_idx, res->res_name,
+				path_cfg->epoch_ts.tv_sec, path_cfg->epoch_ts.tv_nsec);
+
 		if (!path_reg) {
 			CAM_ERR(CAM_ISP, "CSID:%d no path registers for res :%d",
 				csid_hw->hw_intf->hw_idx, res->res_id);
@@ -1386,6 +1393,7 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 	uint32_t                                    long_pkt_ftr_val;
 	uint32_t                                    total_crc;
 	int                                         data_idx = 0;
+	int                                         phy_idx = 0;
 
 	if (!handler_priv || !evt_payload_priv) {
 		CAM_ERR(CAM_ISP, "Invalid params");
@@ -1405,6 +1413,9 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 
 	irq_status = payload->irq_reg_val &
 			csi2_reg->fatal_err_mask[CAM_IFE_CSID_RX_IRQ_STATUS_REG0];
+
+
+	phy_idx = (int)(csid_hw->rx_cfg.phy_sel - csid_reg->cmn_reg->phy_sel_base_idx);
 
 	if (!csid_hw->flags.device_enabled) {
 		CAM_DBG(CAM_ISP, "CSID[%u] bottom-half after stop [0x%x]",
@@ -1442,6 +1453,9 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 
 		if (irq_status & IFE_CSID_VER2_RX_ERROR_CPHY_PH_CRC) {
 			event_type |= CAM_ISP_HW_ERROR_CSID_PKT_HDR_CORRUPTED;
+
+			count_ife_error(phy_idx);
+
 			CAM_ERR_BUF(CAM_ISP, log_buf, CAM_IFE_CSID_LOG_BUF_LEN, &len,
 				"CPHY_PH_CRC: Pkt Hdr CRC mismatch");
 			count_mipi_error(csid_hw->res_type);//add by xiaomi
@@ -1451,6 +1465,9 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 			event_type |= CAM_ISP_HW_ERROR_CSID_MISSING_PKT_HDR_DATA;
 			val = cam_io_r_mb(soc_info->reg_map[0].mem_base +
 				csi2_reg->captured_long_pkt_0_addr);
+
+			count_ife_error(phy_idx);
+
 			CAM_ERR_BUF(CAM_ISP, log_buf, CAM_IFE_CSID_LOG_BUF_LEN, &len,
 				"STREAM_UNDERFLOW: Fewer bytes rcvd than WC:%d in pkt hdr",
 				val & 0xFFFF);
@@ -1459,6 +1476,9 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 
 		if (irq_status & IFE_CSID_VER2_RX_ERROR_ECC) {
 			event_type |= CAM_ISP_HW_ERROR_CSID_PKT_HDR_CORRUPTED;
+
+			count_ife_error(phy_idx);
+
 			CAM_ERR_BUF(CAM_ISP, log_buf,
 				CAM_IFE_CSID_LOG_BUF_LEN, &len,
 				"DPHY_ERROR_ECC: Pkt hdr errors unrecoverable. ECC: 0x%x",
