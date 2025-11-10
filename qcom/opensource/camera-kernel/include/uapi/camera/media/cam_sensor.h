@@ -86,6 +86,11 @@ enum cam_ois_packet_opcodes {
 	CAM_OIS_PACKET_OPCODE_OIS_CHANGE_PWM // xiaomi add
 };
 
+enum cam_aperture_packet_opcodes {
+	CAM_APERTURE_PACKET_OPCODE_INIT,
+	CAM_APERTURE_PACKET_SWITCH,
+	CAM_APERTURE_PACKET_OPCODE_READ,
+};
 
 enum camera_sensor_i2c_op_code {
 	CAMERA_SENSOR_I2C_OP_INVALID,
