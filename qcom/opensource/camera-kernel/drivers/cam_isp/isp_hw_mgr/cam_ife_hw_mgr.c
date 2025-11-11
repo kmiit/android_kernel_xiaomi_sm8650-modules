@@ -47,6 +47,7 @@
 
 #define MAX_PARAMS_FOR_IRQ_INJECT     5
 #define IRQ_INJECT_DISPLAY_BUF_LEN    4096
+#define MAXIMUM_RDI1_WAIT_TIMES       200
 
 typedef int (*cam_isp_irq_inject_cmd_parse_handler)(
 	struct cam_isp_irq_inject_param *irq_inject_param,
@@ -987,7 +988,7 @@ static bool cam_ife_hw_mgr_is_sfe_rd_res(
 
 static int cam_ife_hw_mgr_reset_csid(
 	struct cam_ife_hw_mgr_ctx  *ctx,
-	int reset_type)
+	int reset_type, bool power_on_rst)
 {
 	int i;
 	int rc = 0;
@@ -1013,6 +1014,7 @@ static int cam_ife_hw_mgr_reset_csid(
 
 			reset_args.reset_type = reset_type;
 			reset_args.node_res = hw_mgr_res->hw_res[i];
+			reset_args.power_on_reset = power_on_rst;
 			rc  = hw_intf->hw_ops.reset(hw_intf->hw_priv,
 				&reset_args, sizeof(reset_args));
 			if (rc)
@@ -1235,7 +1237,7 @@ static void cam_ife_hw_mgr_deinit_hw(
 	hw_mgr = ctx->hw_mgr;
 
 	if (hw_mgr->csid_global_reset_en)
-		cam_ife_hw_mgr_reset_csid(ctx, CAM_IFE_CSID_RESET_GLOBAL);
+		cam_ife_hw_mgr_reset_csid(ctx, CAM_IFE_CSID_RESET_GLOBAL, false);
 
 	/* Deinit IFE CSID */
 	list_for_each_entry(hw_mgr_res, &ctx->res_list_ife_csid, list) {
@@ -3664,6 +3666,10 @@ static int cam_ife_hw_mgr_acquire_csid_hw(
 		return -EINVAL;
 	}
 
+	/*add by xiaomi begin*/
+	csid_acquire->crc_error_divisor = ife_ctx->crc_error_divisor;
+	/*add by xiaomi end*/
+
 	ife_hw_mgr = ife_ctx->hw_mgr;
 
 	if (ife_ctx->ctx_type == CAM_IFE_CTX_TYPE_SFE)
@@ -4444,7 +4450,8 @@ end:
 
 static int cam_ife_hw_mgr_preprocess_port(
 	struct cam_ife_hw_mgr_ctx   *ife_ctx,
-	struct cam_isp_in_port_generic_info *in_port)
+	struct cam_isp_in_port_generic_info *in_port,
+	uint32_t                    *max_height)
 {
 	uint32_t i;
 	struct cam_isp_out_port_generic_info *out_port;
@@ -4460,6 +4467,10 @@ static int cam_ife_hw_mgr_preprocess_port(
 		if (cam_ife_hw_mgr_is_rdi_res(out_port->res_type)) {
 			in_port->rdi_count++;
 			in_port->lite_path_count++;
+			if (out_port->height >= *max_height) {
+				ife_ctx->pri_rdi_out_res = out_port->res_type;
+				*max_height = out_port->height;
+			}
 		}
 		else if (cam_ife_hw_mgr_is_sfe_rdi_res(out_port->res_type))
 			in_port->rdi_count++;
@@ -5650,6 +5661,7 @@ static int cam_ife_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	uint32_t                           input_size = 0;
 	uint32_t                           acquired_rdi_res = 0;
 	uint32_t                           input_format_checker = 0;
+	uint32_t                           max_height = 0;
 
 	CAM_DBG(CAM_ISP, "Enter...");
 
@@ -5689,6 +5701,9 @@ static int cam_ife_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	ife_ctx->left_hw_idx = CAM_IFE_CSID_HW_NUM_MAX;
 	ife_ctx->right_hw_idx = CAM_IFE_CSID_HW_NUM_MAX;
 	ife_ctx->flags.skip_reg_dump_buf_put = false;
+	/*add by xiaomi begin*/
+	ife_ctx->crc_error_divisor = acquire_args->crc_error_divisor;
+	/*add by xiaomi end*/
 
 	acquire_hw_info = (struct cam_isp_acquire_hw_info *) acquire_args->acquire_info;
 
@@ -5757,7 +5772,7 @@ static int cam_ife_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 			goto free_mem;
 		}
 
-		cam_ife_hw_mgr_preprocess_port(ife_ctx, &in_port[i]);
+		cam_ife_hw_mgr_preprocess_port(ife_ctx, &in_port[i], &max_height);
 		total_pix_port += in_port[i].ipp_count +
 					in_port[i].ife_rd_count +
 					in_port[i].lcr_count;
@@ -6086,6 +6101,7 @@ static int cam_ife_mgr_acquire_dev(void *hw_mgr_priv, void *acquire_hw_args)
 	uint32_t                               in_port_length = 0;
 	uint32_t                               acquired_rdi_res = 0;
 	uint32_t                               total_ports = 0;
+	uint32_t                               max_height = 0;
 
 	CAM_DBG(CAM_ISP, "Enter...");
 
@@ -6175,7 +6191,7 @@ static int cam_ife_mgr_acquire_dev(void *hw_mgr_priv, void *acquire_hw_args)
 			cam_ife_mgr_acquire_get_unified_dev_str(in_port,
 				&gen_port_info[i]);
 			cam_ife_hw_mgr_preprocess_port(ife_ctx,
-				&gen_port_info[i]);
+				&gen_port_info[i], &max_height);
 
 			total_pix_port += gen_port_info[i].ipp_count +
 						gen_port_info[i].ife_rd_count +
@@ -7131,6 +7147,8 @@ static int cam_ife_mgr_config_hw(
 	struct cam_ife_hw_mgr *ife_hw_mgr;
 	unsigned long rem_jiffies = 0;
 	bool is_cdm_hung = false;
+	uint64_t curr_timestamp, delay_ns = 0;
+	uint64_t rdi1_wait_times = 0;
 	size_t len = 0;
 	uint32_t *buf_addr = NULL, *buf_start = NULL, *buf_end = NULL;
 	uint32_t cmd_type = 0;
@@ -7162,6 +7180,59 @@ static int cam_ife_mgr_config_hw(
 			"Ctx[%pK][%u] Overflow pending, cannot apply req %llu",
 			ctx, ctx->ctx_index, cfg->request_id);
 		return -EPERM;
+	}
+
+	CAM_GET_TIMESTAMP_NS(curr_timestamp);
+
+	CAM_DBG(CAM_ISP,
+			"curr_timestamp:%llu rdi1_sof_timestamp:%llu epoch_timestamp:%llu sof_timestamp:%llu exposure_time:%llu rdi2_sof_timestamp_shdr:%llu rdi4_sof_timestamp_shdr:%llu rdi1_sof_timestamp_shdr:%llu mup_req_id: %llu cfg_req_id: %llu",
+			curr_timestamp, ctx->rdi1_sof_timestamp, ctx->epoch_timestamp, ctx->sof_timestamp, ctx->exposure_time, ctx->rdi2_sof_timestamp_shdr, ctx->rdi4_sof_timestamp_shdr, ctx->rdi1_sof_timestamp_shdr, ctx->mup_req_id, cfg->request_id);
+
+	if ((ctx->rdi1_sof_timestamp != 0) && (curr_timestamp - ctx->rdi1_sof_timestamp >
+			ctx->epoch_timestamp - ctx->sof_timestamp)) {
+		if (2 * ctx->exposure_time > (ctx->epoch_timestamp - ctx->sof_timestamp))
+			delay_ns = 2 * ctx->exposure_time - (ctx->epoch_timestamp - ctx->sof_timestamp);
+		CAM_INFO(CAM_ISP, "delay %d ns", delay_ns);
+		if (delay_ns < CAM_COMMON_NS_PER_MS)
+			usleep_range(1000, 1010);
+		else if (delay_ns < 100 * CAM_COMMON_NS_PER_MS)
+			usleep_range(delay_ns / 1000, delay_ns / 1000 + 10);
+
+		CAM_GET_TIMESTAMP_NS(curr_timestamp);
+	}
+
+	ctx->rdi1_sof_timestamp = 0;
+
+    if ((ctx->mup_req_id != 0) && (ctx->mup_req_id == cfg->request_id) //mup only
+        && (ctx->rdi4_sof_timestamp_shdr != 0)) //shdr + non-1st mup only
+	{
+		if (((ctx->rdi1_sof_timestamp_shdr != 0)&&(!((ctx->rdi1_sof_timestamp_shdr < curr_timestamp) &&
+			(ctx->rdi2_sof_timestamp_shdr < ctx->rdi1_sof_timestamp_shdr)))) ||
+           ((ctx->rdi1_sof_timestamp_shdr == 0) && ((ctx->rdi4_sof_timestamp_shdr != 0) || (ctx->rdi2_sof_timestamp_shdr != 0))))//long < short < curr, whole frame only
+		{
+			do {
+				usleep_range(3000, 3010); //3ms each step
+				CAM_GET_TIMESTAMP_NS(curr_timestamp); //update curr time
+				rdi1_wait_times++;
+				CAM_DBG(CAM_CRM, "rdi1 wait times %d curr_timestamp: %llu", rdi1_wait_times, curr_timestamp);
+
+			   if (((ctx->rdi1_sof_timestamp_shdr < curr_timestamp) &&
+					(ctx->rdi2_sof_timestamp_shdr < ctx->rdi1_sof_timestamp_shdr))) {
+					CAM_DBG(CAM_CRM, "sdhr rdi1 back, rdi1 totally wait time %d ms", rdi1_wait_times*3);
+				   break;
+			   }
+			} while (rdi1_wait_times < MAXIMUM_RDI1_WAIT_TIMES); //max wait ms to sync mup update
+			//
+			if (rdi1_wait_times  >= MAXIMUM_RDI1_WAIT_TIMES) {
+				CAM_WARN(CAM_CRM, "wait sdhr rdi1 back timeout");
+			}
+		}
+
+		CAM_DBG(CAM_CRM, "reset dual vc shdr protection var");	
+		ctx->mup_req_id = 0;
+		ctx->rdi2_sof_timestamp_shdr = 0;
+		ctx->rdi4_sof_timestamp_shdr = 0;
+		ctx->rdi1_sof_timestamp_shdr = 0;
 	}
 
 	/*
@@ -7437,7 +7508,7 @@ skip_bw_clk_update:
 			(ctx->ctx_config & CAM_IFE_CTX_CFG_SW_SYNC_ON)) {
 			rem_jiffies = cam_common_wait_for_completion_timeout(
 				&ctx->config_done_complete,
-				msecs_to_jiffies(60));
+				msecs_to_jiffies(600));//XM mod 60 -> 600
 			if (rem_jiffies == 0) {
 				CAM_ERR(CAM_ISP,
 					"config done completion timeout for req_id=%llu ctx_index %u",
@@ -8416,7 +8487,7 @@ static int cam_ife_mgr_reset(void *hw_mgr_priv, void *hw_reset_args)
 
 	CAM_DBG(CAM_ISP, "Reset CSID and VFE, ctx_idx: %u", ctx->ctx_index);
 
-	rc = cam_ife_hw_mgr_reset_csid(ctx, CAM_IFE_CSID_RESET_PATH);
+	rc = cam_ife_hw_mgr_reset_csid(ctx, CAM_IFE_CSID_RESET_PATH, false);
 
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Failed to reset CSID:%d rc: %d ctx_idx: %u",
@@ -8486,6 +8557,7 @@ static int cam_ife_mgr_release_hw(void *hw_mgr_priv,
 	ctx->cdm_handle = 0;
 	ctx->cdm_hw_idx = -1;
 	ctx->cdm_ops = NULL;
+	ctx->num_reg_dump_buf = 0;
 	ctx->ctx_config = 0;
 	ctx->num_reg_dump_buf = 0;
 	ctx->last_cdm_done_req = 0;
@@ -8496,6 +8568,7 @@ static int cam_ife_mgr_release_hw(void *hw_mgr_priv,
 	ctx->num_acq_sfe_out = 0;
 	kfree(ctx->res_list_ife_out);
 	ctx->res_list_ife_out = NULL;
+	ctx->pri_rdi_out_res = g_ife_hw_mgr.isp_caps.max_vfe_out_res_type;
 	memset(ctx->vfe_out_map, 0, sizeof(uint8_t) * max_ife_out_res);
 	if (ctx->ctx_type == CAM_IFE_CTX_TYPE_SFE) {
 		kfree(ctx->res_list_sfe_out);
@@ -9622,6 +9695,13 @@ static int cam_isp_blob_csid_dynamic_switch_update(
 	ctx = prepare->ctxt_to_hw_map;
 	ife_hw_mgr = ctx->hw_mgr;
 
+	ctx->mup_req_id = prepare->packet->header.request_id;
+
+	CAM_DBG(CAM_ISP,
+		"csid mup value=%u, ctx_idx: %u req id %llu last_mup %ld mup_req_id %llu", 
+		mup_config->mup, ctx->ctx_index, prepare->packet->header.request_id, ctx->last_mup, ctx->mup_req_id);
+
+	ctx->last_mup = mup_config->mup;
 	CAM_INFO(CAM_ISP,
 		"csid mup value=%u, ctx_idx: %u", mup_config->mup, ctx->ctx_index);
 
@@ -14845,7 +14925,7 @@ static int cam_ife_mgr_recover_hw(void *priv, void *data)
 		for (i = 0; i < recovery_data->no_of_context; i++) {
 			ctx = recovery_data->affected_ctx[i];
 			rc = cam_ife_hw_mgr_reset_csid(ctx,
-				CAM_IFE_CSID_RESET_PATH);
+				CAM_IFE_CSID_RESET_PATH, false);
 
 			if (rc) {
 				CAM_ERR(CAM_ISP, "Failed RESET, ctx_idx: %u", ctx->ctx_index);
@@ -15323,6 +15403,10 @@ static int cam_ife_hw_mgr_handle_csid_camif_sof(
 			}
 		}
 
+		if (event_info->res_id == CAM_IFE_PIX_PATH_RES_RDI_0)
+				CAM_GET_TIMESTAMP_NS(ctx->sof_timestamp);
+
+		cam_hw_mgr_reset_out_of_sync_cnt(ctx);
 		ife_hw_irq_sof_cb(ctx->common.cb_priv,
 			CAM_ISP_HW_EVENT_SOF, (void *)&sof_done_event_data);
 
@@ -15693,6 +15777,8 @@ static int cam_ife_hw_mgr_handle_hw_epoch(
 		epoch_done_event_data.frame_id_meta = event_info->reg_val;
 		ife_hw_irq_epoch_cb(ife_hw_mgr_ctx->common.cb_priv,
 			CAM_ISP_HW_EVENT_EPOCH, (void *)&epoch_done_event_data);
+
+		CAM_GET_TIMESTAMP_NS(ife_hw_mgr_ctx->epoch_timestamp);
 
 		break;
 
@@ -16106,6 +16192,7 @@ static int cam_ife_hw_mgr_handle_sfe_event(
 	struct cam_isp_hw_event_info    *event_info)
 {
 	int rc = 0;
+	uint64_t rdi4_timestamp = 0;
 
 	CAM_DBG(CAM_ISP, "Handle SFE[%u] %s event in ctx: %u",
 		event_info->hw_idx,
@@ -16119,6 +16206,22 @@ static int cam_ife_hw_mgr_handle_sfe_event(
 
 	case CAM_ISP_HW_EVENT_DONE:
 		rc = cam_ife_hw_mgr_handle_hw_buf_done(ctx, event_info);
+		break;
+
+	case CAM_ISP_HW_EVENT_SOF:
+		if (event_info->res_id == CAM_ISP_HW_SFE_IN_RDI1) {
+			CAM_GET_TIMESTAMP_NS(ctx->rdi1_sof_timestamp);
+		    CAM_GET_TIMESTAMP_NS(ctx->rdi1_sof_timestamp_shdr);
+		}
+		else if (event_info->res_id == CAM_ISP_HW_SFE_IN_RDI2) {
+			CAM_GET_TIMESTAMP_NS(ctx->rdi2_sof_timestamp);
+			CAM_GET_TIMESTAMP_NS(ctx->rdi2_sof_timestamp_shdr);
+		}
+		else if (event_info->res_id == CAM_ISP_HW_SFE_IN_RDI4) {
+			CAM_GET_TIMESTAMP_NS(rdi4_timestamp);
+			CAM_GET_TIMESTAMP_NS(ctx->rdi4_sof_timestamp_shdr);
+			ctx->exposure_time = rdi4_timestamp - ctx->rdi2_sof_timestamp;
+		}
 		break;
 
 	default:

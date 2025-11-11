@@ -642,6 +642,16 @@ int cam_soc_util_irq_enable(struct cam_hw_soc_info *soc_info);
 int cam_soc_util_irq_disable(struct cam_hw_soc_info *soc_info);
 
 /**
+ * cam_soc_util_get_regulator_enable()
+ *
+ * @brief:              Enable single regulator
+ *
+ * @rgltr               Regulator that needs to be turned ON
+ * @return:             Success or failure
+ */
+int cam_soc_util_get_regulator_enable(struct regulator *rgltr);
+
+/**
  * cam_soc_util_regulator_enable()
  *
  * @brief:              Enable single regulator

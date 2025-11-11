@@ -2833,6 +2833,10 @@ int cam_soc_util_regulator_disable(struct regulator *rgltr,
 	return rc;
 }
 
+int cam_soc_util_get_regulator_enable(struct regulator *rgltr)
+{
+	return cam_wrapper_regulator_is_enabled(rgltr);
+}
 
 int cam_soc_util_regulator_enable(struct regulator *rgltr,
 	const char *rgltr_name,

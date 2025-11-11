@@ -790,6 +790,13 @@ struct cam_ife_csid_ver2_reg_info {
  * @discard_frame_per_path:   Count of paths dropping initial frames
  * @drv_init_done:            Indicates if drv init config is done
  * @is_drv_config_en:         If drv config is enabled
+ * @crc_error_threshold:      CRC error threshold to be treated as fatal error
+ * @secure_mode:              Holds secure mode state of the CSID
+ * @reset_done:               Flag which indicate CSID SW reset is done
+ * add by xiaomi begin
+ * @crc_error_divisor:        Width/divisor pixels per line report crc errors will trigger
+ *                            internal recovery, only for CPHY
+ * add by xiaomi end
  *
  */
 struct cam_ife_csid_ver2_hw {
@@ -840,6 +847,12 @@ struct cam_ife_csid_ver2_hw {
 	atomic_t                               discard_frame_per_path;
 	bool                                   drv_init_done;
 	bool                                   is_drv_config_en;
+	uint32_t                               crc_error_threshold;
+	bool                                   secure_mode;
+	bool                                   reset_done;
+	/*add by xiaomi begin*/
+	uint32_t                               crc_error_divisor;
+	/*add by xiaomi end*/
 };
 
 /*

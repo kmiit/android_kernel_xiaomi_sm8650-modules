@@ -239,6 +239,7 @@ struct cam_tfe_hw_mgr_ctx {
  * @work q                 work queue for TFE hw manager
  * @debug_cfg              debug configuration
  * @path_port_map          Mapping of outport to TFE mux
+ * @support_consumed_addr  indicate whether hw supports last consumed address
  * @ctx_lock               Spinlock for HW manager
  * @isp_caps               Capability of underlying TFE HW
  */
@@ -260,6 +261,7 @@ struct cam_tfe_hw_mgr {
 	struct cam_req_mgr_core_workq   *workq;
 	struct cam_tfe_hw_mgr_debug      debug_cfg;
 	struct cam_isp_hw_path_port_map  path_port_map;
+	bool                             support_consumed_addr;
 	spinlock_t                       ctx_lock;
 	struct cam_isp_tfe_hw_caps       isp_caps;
 };

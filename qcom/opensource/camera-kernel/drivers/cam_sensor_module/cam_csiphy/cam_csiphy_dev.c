@@ -59,6 +59,7 @@ static int cam_csiphy_format_secure_phy_lane_info(
 			phy_lane_sel_mask |= LANE_1_SEL;
 		if (param->lane_enable & CPHY_LANE_2)
 			phy_lane_sel_mask |= LANE_2_SEL;
+		phy_lane_sel_mask <<= CPHY_LANE_SELECTION_SHIFT;
 	} else {
 		if (param->lane_enable & DPHY_LANE_0)
 			phy_lane_sel_mask |= LANE_0_SEL;
