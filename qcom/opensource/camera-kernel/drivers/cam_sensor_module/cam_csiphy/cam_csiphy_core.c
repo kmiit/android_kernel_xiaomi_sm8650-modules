@@ -38,14 +38,6 @@
  */
 #define CSIPHY_ONTHEGO_BUFSIZE 30
 
-static DEFINE_MUTEX(active_csiphy_cnt_mutex);
-static DEFINE_MUTEX(main_aon_selection);
-
-static int csiphy_onthego_reg_count;
-static unsigned int csiphy_onthego_regs[150];
-module_param_array(csiphy_onthego_regs, uint, &csiphy_onthego_reg_count, 0644);
-MODULE_PARM_DESC(csiphy_onthego_regs, "Functionality to let csiphy registers program on the fly");
-
 struct g_csiphy_data {
 	void __iomem *base_address;
 	uint8_t is_3phase;
