@@ -351,6 +351,10 @@ struct cam_isp_comp_record_query {
  * @cdm_done_ts:            CDM callback done timestamp
  * @is_hw_ctx_acq:          If acquire for ife ctx is having hw ctx acquired
  * @acq_hw_ctxt_src_dst_map: Src to dst hw ctxt map for acquired pixel paths
+ * add by xiaomi begin
+ * @crc_error_divisor:      Width/divisor pixels per line report crc errors will trigger
+ *                          internal recovery, only for CPHY
+ * add by xiaomi end
  *
  */
 struct cam_ife_hw_mgr_ctx {
@@ -421,6 +425,9 @@ struct cam_ife_hw_mgr_ctx {
 	struct timespec64                          cdm_done_ts;
 	bool                                       is_hw_ctx_acq;
 	uint32_t                                   acq_hw_ctxt_src_dst_map[CAM_ISP_MULTI_CTXT_MAX];
+	/*add by xiaomi begin*/
+	uint32_t                                   crc_error_divisor;
+	/*add by xiaomi end*/
 };
 
 /**

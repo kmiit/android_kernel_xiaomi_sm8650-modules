@@ -3664,6 +3664,10 @@ static int cam_ife_hw_mgr_acquire_csid_hw(
 		return -EINVAL;
 	}
 
+	/*add by xiaomi begin*/
+	csid_acquire->crc_error_divisor = ife_ctx->crc_error_divisor;
+	/*add by xiaomi end*/
+
 	ife_hw_mgr = ife_ctx->hw_mgr;
 
 	if (ife_ctx->ctx_type == CAM_IFE_CTX_TYPE_SFE)
@@ -5689,6 +5693,9 @@ static int cam_ife_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	ife_ctx->left_hw_idx = CAM_IFE_CSID_HW_NUM_MAX;
 	ife_ctx->right_hw_idx = CAM_IFE_CSID_HW_NUM_MAX;
 	ife_ctx->flags.skip_reg_dump_buf_put = false;
+	/*add by xiaomi begin*/
+	ife_ctx->crc_error_divisor = acquire_args->crc_error_divisor;
+	/*add by xiaomi end*/
 
 	acquire_hw_info = (struct cam_isp_acquire_hw_info *) acquire_args->acquire_info;
 

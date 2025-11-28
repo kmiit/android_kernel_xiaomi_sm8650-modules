@@ -239,7 +239,10 @@ struct cam_csid_secondary_evt_config {
  * @sfe_en:              Flag to indicate if SFE is enabled
  * @use_wm_pack:         [OUT]Flag to indicate if WM packing is to be used for packing
  * @handle_camif_irq:    Flag to indicate if CSID IRQ is enabled
- *
+ * * add by xiaomi begin
+ * @crc_error_divisor:   Width/divisor pixels per line report crc errors will trigger
+ *                       internal recovery, only for CPHY
+ * add by xiaomi end
  */
 struct cam_csid_hw_reserve_resource_args {
 	enum cam_isp_resource_type                res_type;
@@ -265,6 +268,9 @@ struct cam_csid_hw_reserve_resource_args {
 	bool                                      sfe_en;
 	bool                                      use_wm_pack;
 	bool                                      handle_camif_irq;
+	/*add by xiaomi begin*/
+	uint32_t                                  crc_error_divisor;
+	/*add by xiaomi end*/
 };
 
 /**

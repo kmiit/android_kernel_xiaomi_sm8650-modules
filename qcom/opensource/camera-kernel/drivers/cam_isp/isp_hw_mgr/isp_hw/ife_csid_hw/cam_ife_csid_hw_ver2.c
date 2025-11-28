@@ -3439,6 +3439,9 @@ int cam_ife_csid_ver2_reserve(void *hw_priv,
 	path_cfg->handle_camif_irq = reserve->handle_camif_irq;
 	csid_hw->flags.offline_mode = reserve->is_offline;
 	reserve->need_top_cfg = csid_reg->need_top_cfg;
+	/*add by xiaomi begin*/
+	csid_hw->crc_error_divisor = reserve->crc_error_divisor;
+	/*add by xiaomi end*/
 
 	CAM_DBG(CAM_ISP, "CSID[%u] Resource[id: %d name:%s] state %d cid %d",
 		csid_hw->hw_intf->hw_idx, reserve->res_id, res->res_name,
@@ -4303,7 +4306,6 @@ static int cam_ife_csid_ver2_program_ipp_path(
 
 	mem_base = soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base;
 	path_cfg = (struct cam_ife_csid_ver2_path_cfg *)res->res_priv;
-
 	cam_io_w_mb(path_cfg->epoch_cfg << path_reg->epoch0_shift_val,
 		mem_base + path_reg->epoch_irq_cfg_addr);
 
