@@ -1,1 +1,5 @@
+ifeq ($(CONFIG_TARGET_PRODUCT_SHENNONG), y)
+	obj-m += goodix_fod/
+endif
+
 obj-m := qbt_handler.o
