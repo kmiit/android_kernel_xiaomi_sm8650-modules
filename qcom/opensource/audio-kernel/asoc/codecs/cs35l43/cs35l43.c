@@ -494,6 +494,11 @@ static const struct snd_kcontrol_new cs35l43_aud_controls[] = {
 	SOC_ENUM_EXT("DSP Mode", dsp_mode_enum, wm_adsp_dsp_mode_get, wm_adsp_dsp_mode_put),
 	SOC_SINGLE_EXT("Enable RCV Pin Control", SND_SOC_NOPM, 0, 1, 0,
 			cs35l43_rcv_switch_pinctrl_get, cs35l43_rcv_switch_pinctrl_put),
+	SOC_SINGLE("CLASSH CONFIG", CS35L43_CLASSH_CONFIG, 0, 0x7FFFFF, 0),
+	SOC_SINGLE("PCM Invert", CS35L43_AMP_CTRL,
+		   CS35L43_AMP_INV_PCM_SHIFT, 1, 0),
+	SOC_SINGLE_EXT("DSP RESET", SND_SOC_NOPM, 0, 1, 0,
+		       wm_adsp_dsp_reset_get, wm_adsp_dsp_reset_put),
 /*
 	SND_SOC_BYTES_TLV("AMP WR Registers", REG_VALUE_SIZE,
                      cs35l43_rw_registers_get, cs35l43_rw_registers_put),
@@ -1221,6 +1226,10 @@ static int cs35l43_log_dsp_err(struct cs35l43_private *cs35l43)
 	dev_info(cs35l43->dev, "%s: CS35L43_DSP1_MPU_YM_VIO_STATUS 0x%x\n", __func__, reg);
 	regmap_read(cs35l43->regmap, CS35L43_DSP1_MPU_PM_VIO_STATUS, &reg);
 	dev_info(cs35l43->dev, "%s: CS35L43_DSP1_MPU_PM_VIO_STATUS 0x%x\n", __func__, reg);
+	regmap_read(cs35l43->regmap, CS35L43_DSP1_STREAM_ARB_IRQ1_CONFIG_2, &reg);
+	dev_info(cs35l43->dev, "%s: DSP1_STREAM_ARB_IRQ1_CONFIG_2 0x%x\n", __func__, reg);
+	regmap_read(cs35l43->regmap, CS35L43_DSP1_STREAM_ARB_IRQ2_CONFIG_2, &reg);
+	dev_info(cs35l43->dev, "%s: DSP1_STREAM_ARB_IRQ2_CONFIG_2 0x%x\n", __func__, reg);
 
 	return 0;
 }

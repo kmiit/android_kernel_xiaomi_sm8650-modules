@@ -433,6 +433,30 @@ static int cs35l43_rcv_switch_pinctrl_put(struct snd_kcontrol *kcontrol,
     return 0;
 }
 
+static int wm_adsp_dsp_reset_get(struct snd_kcontrol *kcontrol,
+			       struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = 0;
+
+	return 0;
+}
+
+static int wm_adsp_dsp_reset_put(struct snd_kcontrol *kcontrol,
+			       struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
+	struct cs35l43_private *cs35l43 = snd_soc_component_get_drvdata(component);
+
+	dev_dbg(cs35l43->dev, "%s: reset = %ld\n", __func__,
+		ucontrol->value.integer.value[0]);
+
+	if (ucontrol->value.integer.value[0] &&
+	    !mutex_is_locked(&cs35l43->err_lock))
+		queue_work(cs35l43->err_wq, &cs35l43->err_work);
+
+	return 0;
+}
+
 static void cs35l43_ignore_suspend_widgets(struct snd_soc_component *component)
 {
 	struct snd_soc_dapm_context *dapm = snd_soc_component_get_dapm(component);
